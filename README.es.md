@@ -2,7 +2,7 @@
 
 [简体中文](README.md) · [繁體中文](README.zh-Hant.md) · [English](README.en.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Русский](README.ru.md) · [Español](README.es.md)
 
-![HUI](assets/brand/hui.svg)
+<img src="assets/brand/hui.svg" width="72" height="72" alt="HUI">
 
 Un editor y lector Markdown moderno, limpio y local, creado con **Rust + Slint + Blitz/Skia**, sin WebView.
 

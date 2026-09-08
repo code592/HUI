@@ -1,4 +1,4 @@
-param([ValidateSet('x64','arm64')][string]$Arch = 'x64')
+param([ValidateSet('x64','arm64')][string]$Arch = 'x64', [string]$Language = 'ru')
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $repo = Split-Path $PSScriptRoot -Parent
@@ -11,10 +11,12 @@ Copy-Item "$repo/packaging/smoke/multilingual.md" "$check/desktop.md"
 $oldPath = $env:PATH
 $oldData = $env:HUI_DATA_DIR
 $oldBackend = $env:SLINT_BACKEND
+$oldLanguage = $env:HUI_LANGUAGE
 try {
     $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
     $env:HUI_DATA_DIR = "$check/profile"
     $env:SLINT_BACKEND = $null
+    $env:HUI_LANGUAGE = $Language
     foreach ($format in @('png','pdf')) {
         & $app --render "$check/desktop.md" "$check/document.$format"
         if ($LASTEXITCODE -ne 0) { throw "Rendering failed: $Arch $format ($LASTEXITCODE)" }
@@ -37,4 +39,5 @@ try {
     $env:PATH = $oldPath
     $env:HUI_DATA_DIR = $oldData
     $env:SLINT_BACKEND = $oldBackend
+    $env:HUI_LANGUAGE = $oldLanguage
 }

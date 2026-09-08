@@ -2,7 +2,7 @@
 
 [简体中文](README.md) · [繁體中文](README.zh-Hant.md) · [English](README.en.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Русский](README.ru.md) · [Español](README.es.md)
 
-![HUI](assets/brand/hui.svg)
+<img src="assets/brand/hui.svg" width="72" height="72" alt="HUI">
 
 **Rust + Slint + Blitz/Skia**로 만든 현대적이고 깔끔한 로컬 우선 Markdown 편집기 및 리더입니다. WebView를 사용하지 않습니다.
 

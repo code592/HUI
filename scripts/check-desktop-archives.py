@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Check packaged architecture, required resources and independently computed hashes."""
 import hashlib
+import json
 import pathlib
 import struct
 import sys
@@ -40,7 +41,10 @@ for system in ('windows', 'linux'):
                 assert struct.unpack_from('<H', exe, 18)[0] == {'x64': 62, 'arm64': 183}[arch]
                 for p in ('bin/assets/katex/katex.min.css', 'share/applications/hui.desktop', 'share/icons/hicolor/scalable/apps/hui.svg'):
                     assert bundle.getmember(f'{name}/{p}').size > 0
+        for locale in (root / 'crates/hui-app/assets/locales').glob('*.json'):
+            greeting = json.loads(locale.read_text(encoding='utf-8'))['欢迎使用 HUI'].encode('utf-8')
+            assert greeting in exe, f'{archive.name}: missing embedded locale {locale.stem}'
         digest = hashlib.sha256(archive.read_bytes()).hexdigest()
         saved = pathlib.Path(str(archive) + '.sha256').read_text(encoding='utf-8-sig').strip().split()[0]
         assert digest == saved.lower(), archive
-        print(f'PASS {archive.name}: architecture, resources, SHA-256 {digest}')
+        print(f'PASS {archive.name}: architecture, resources, nine embedded languages, SHA-256 {digest}')
