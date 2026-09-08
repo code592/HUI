@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=HUI
+Comment=Read and edit local Markdown documents
+Comment[zh_CN]=安静地阅读，专注地写作
+Exec=hui %F
+Icon=hui
+Terminal=false
+Categories=Office;TextEditor;
+MimeType=text/markdown;text/x-markdown;
+StartupNotify=true

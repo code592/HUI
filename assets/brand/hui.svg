@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>HUI — open pages</title>
+  <desc>A white H formed by two open pages on a blue field.</desc>
+  <rect width="1024" height="1024" rx="224" fill="#477AD9"/>
+  <g id="mark" fill="#FFFFFF">
+    <path d="M296 268C283 264 272 274 272 288V676C272 686 278 694 288 698L480 760V330Z"/>
+    <path d="M728 268C741 264 752 274 752 288V676C752 686 746 694 736 698L544 760V330Z"/>
+    <path d="M464 476H560V548H464Z"/>
+  </g>
+</svg>

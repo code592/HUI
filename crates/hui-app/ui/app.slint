@@ -1,0 +1,691 @@
+import { LineEdit, Slider, CheckBox, Palette, ComboBox } from "std-widgets.slint";
+
+export global I18n {
+    in-out property <int> locale: 2;
+    pure callback translate(string, int) -> string;
+}
+
+export global Design {
+    in-out property <int> theme: 0;
+    out property <color> paper: theme == 1 ? #1c1e23 : theme == 2 ? #f5efdf : #fdfcf9;
+    out property <color> panel: theme == 1 ? #22252b : theme == 2 ? #ede6d7 : #f4f5f7;
+    out property <color> ink: theme == 1 ? #e4e6ec : #2b303b;
+    out property <color> muted: theme == 1 ? #a1a8b5 : #77808d;
+    out property <color> line: theme == 1 ? #343942 : #e6e8ed;
+    out property <color> accent: #477ad9;
+    out property <color> hover: theme == 1 ? #303641 : #e9edf4;
+    out property <color> active: theme == 1 ? #2b3a53 : #e4ecfa;
+}
+
+export struct FileRow { label: string, detail: string, folder: bool, depth: int }
+export struct TabRow { label: string, dirty: bool }
+export struct HeadingRow { label: string, level: int, offset: int }
+
+component Action inherits Rectangle {
+    in property <string> label;
+    in property <string> hint: label;
+    in property <image> icon;
+    in property <bool> has-icon: false;
+    in property <bool> selected;
+    callback triggered();
+    horizontal-stretch: 0;
+    preferred-width: label == "" ? 36px : 56px;
+    height: 34px;
+    border-radius: 8px;
+    background: selected ? Design.active : touch.has-hover ? Design.hover : transparent;
+    accessible-role: button;
+    accessible-label: hint;
+    accessible-action-default => { root.triggered(); }
+    HorizontalLayout {
+        padding-left: 10px; padding-right: 10px; spacing: 6px; alignment: center;
+        if root.has-icon: Rectangle { width: 17px;
+            Image { source: root.icon; width: 17px; height: 17px; y: (parent.height - self.height) / 2; colorize: root.selected ? Design.accent : Design.muted; }
+        }
+        if root.label != "": Text { text: root.label; color: root.selected ? Design.accent : Design.ink; font-size: 12px; vertical-alignment: center; }
+    }
+    touch := TouchArea { mouse-cursor: pointer; clicked => { root.triggered(); } }
+    Tooltip { text: @markdown("\{root.hint}"); }
+}
+
+component Divider inherits Rectangle { background: Design.line; height: 1px; }
+
+
+// Overlay tracks reserve no layout width; all themes share the same geometry.
+component ThinScrollBar inherits Rectangle {
+    in property <float> maximum;
+    in property <float> page;
+    in-out property <float> value;
+    callback changed(float);
+    width: 10px;
+    visible: maximum > 0;
+    private property <length> thumb-height: min(root.height, max(28px, root.height * page / max(1, maximum + page)));
+    private property <length> travel: max(1px, root.height - thumb-height);
+    Rectangle {
+        x: 3px; width: 4px; height: root.thumb-height;
+        y: root.travel * clamp(root.value / max(1, root.maximum), 0, 1);
+        border-radius: 2px;
+        background: drag.has-hover || drag.pressed ? Design.muted : Design.line;
+    }
+    drag := TouchArea {
+        mouse-cursor: default;
+        private property <float> start-value;
+        private property <length> start-y;
+        pointer-event(event) => {
+            if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
+                if self.mouse-y < root.travel * root.value / max(1, root.maximum) || self.mouse-y > root.travel * root.value / max(1, root.maximum) + root.thumb-height {
+                    root.value = clamp((self.mouse-y - root.thumb-height / 2) / root.travel * root.maximum, 0, root.maximum);
+                    root.changed(root.value);
+                }
+                self.start-value = root.value; self.start-y = self.mouse-y;
+            }
+        }
+        moved => { if self.pressed { root.value = clamp(self.start-value + (self.mouse-y - self.start-y) / root.travel * root.maximum, 0, root.maximum); root.changed(root.value); } }
+        scroll-event(event) => { root.value = clamp(root.value - event.delta-y / 1px, 0, root.maximum); root.changed(root.value); return accept; }
+    }
+}
+component ScrollView inherits Rectangle {
+    out property <length> visible-width: root.width;
+    out property <length> visible-height: root.height;
+    in-out property <length> viewport-width <=> flick.viewport-width;
+    in-out property <length> viewport-height <=> flick.viewport-height;
+    in-out property <length> viewport-y <=> flick.viewport-y;
+    min-height: 50px; min-width: 50px;
+    horizontal-stretch: 1; vertical-stretch: 1;
+    flick := Flickable { interactive: false; @children }
+    ThinScrollBar {
+        x: parent.width - self.width; height: parent.height;
+        maximum: max(0, (root.viewport-height - root.height) / 1px);
+        page: root.height / 1px; value: -root.viewport-y / 1px;
+        changed(v) => { root.viewport-y = -v * 1px; }
+    }
+}
+// Inline editing must fit the rendered block exactly, including headings shorter than 50px.
+component InlineScrollView inherits Rectangle {
+    out property <length> visible-width: root.width;
+    out property <length> visible-height: root.height;
+    in-out property <length> viewport-width <=> flick.viewport-width;
+    in-out property <length> viewport-height <=> flick.viewport-height;
+    in-out property <length> viewport-y <=> flick.viewport-y;
+    flick := Flickable { interactive: false; @children }
+    ThinScrollBar {
+        x: parent.width - self.width; height: parent.height;
+        maximum: max(0, (root.viewport-height - root.height) / 1px);
+        page: root.height / 1px; value: -root.viewport-y / 1px;
+        changed(v) => { root.viewport-y = -v * 1px; }
+    }
+}
+export component AppWindow inherits Window {
+    icon: @image-url("../../../assets/brand/hui-256.png");
+    title: document-name + " — HUI";
+    in-out property <float> initial-width: 1180;
+    in-out property <float> initial-height: 800;
+    preferred-width: initial-width * 1px; preferred-height: initial-height * 1px;
+    min-width: 430px; min-height: 520px;
+    background: Design.paper;
+    default-font-size: 13px;
+    in-out property <int> theme <=> Design.theme;
+    in-out property <int> mode: 3;
+    in-out property <int> displayed-mode: 3;
+    in property <string> code-font: "monospace";
+    in property <float> frame-width;
+    in property <float> frame-height;
+    in-out property <bool> sidebar-visible: true;
+    in-out property <bool> outline-visible: false;
+    in-out property <bool> search-visible: false;
+    in-out property <bool> settings-visible: false;
+    in-out property <bool> commands-visible: false;
+    in-out property <float> font-size: 15;
+    in-out property <float> source-font-size: 14;
+    in-out property <float> reading-width: 780;
+    in-out property <float> split-ratio: 0.5;
+    in-out property <float> line-height: 1.5;
+    in-out property <float> paragraph-spacing: 12;
+    in-out property <float> sidebar-width: 240;
+    in property <string> document-name: I18n.translate("欢迎使用 HUI", I18n.locale);
+    in property <string> location: I18n.translate("本地文档", I18n.locale);
+    in property <string> status: I18n.translate("准备就绪", I18n.locale);
+    in property <string> statistics;
+    in property <string> notice;
+    in property <bool> busy;
+    in property <bool> dirty;
+    in property <[FileRow]> files;
+    in property <[TabRow]> tabs;
+    in property <[HeadingRow]> headings;
+    in property <int> active-tab;
+    in property <string> folder-name: I18n.translate("最近打开", I18n.locale);
+    in-out property <string> source;
+    in property <string> source-label;
+    in-out property <float> document-position;
+    in property <bool> has-previous;
+    in property <bool> has-next;
+    in property <image> preview;
+    in-out property <float> preview-position;
+    in property <float> preview-max;
+    in property <string> search-result;
+    out property <float> preview-width: mode == 0 ? 0 : mode == 1 && !compact ? (body-width / 1px - 8) * (1 - split-ratio) : body-width / 1px;
+    out property <float> preview-height: reader.height / 1px + (show-source ? 42 : 0) - (mode == 0 || mode == 1 ? 42 : 0);
+    private property <length> body-width: root.width - (root.sidebar-visible && !root.compact ? root.sidebar-width * 1px + 1px : 0px) - (root.outline-visible && !root.compact ? 196px : 0px);
+    private property <bool> compact: root.width < 760px;
+    private property <bool> show-source: displayed-mode == 0 || displayed-mode == 1;
+    private property <bool> show-reader: displayed-mode == 3 || displayed-mode == 2 || (displayed-mode == 1 && !compact);
+    out property <int> source-cursor: mode == 2 ? inline-input.cursor-position-byte-offset : input.cursor-position-byte-offset;
+    out property <int> source-anchor: mode == 2 ? inline-input.anchor-position-byte-offset : input.anchor-position-byte-offset;
+    out property <bool> editor-has-focus: input.has-focus || inline-input.has-focus;
+    in-out property <bool> editor-active: false;
+    callback action(string);
+    callback edit(string);
+    pure callback highlight-source(string, bool) -> styled-text;
+    private property <length> source-caret-x;
+    private property <length> source-caret-y;
+    callback navigate(float);
+    callback step(int);
+    callback file-clicked(int);
+    callback tab-clicked(int);
+    callback tab-closed(int);
+    callback heading-clicked(int);
+    callback search(string, string, bool, bool);
+    callback scroll-preview(float);
+    callback scroll-source(float);
+    private property <length> synced-source-y: 1px;
+    public function sync-source-scroll(progress: float) {
+        if root.mode == 1 && !root.compact {
+            root.synced-source-y = -clamp(progress, 0, 1) * max(0px, source-scroll.viewport-height - source-scroll.visible-height);
+            source-scroll.viewport-y = root.synced-source-y;
+        }
+    }
+    callback appearance();
+    in-out property <int> language-index: 0;
+    callback language-changed(int);
+    callback resize-preview();
+    callback format(string);
+    callback shortcut(string, bool) -> bool;
+    callback select-reading(int, float, float);
+    callback copy-ready(string);
+    callback save-finished(string, string, string);
+    callback search-finished(string, string, string, bool);
+    callback open-inline(float, float);
+    callback inline-ready(float, int, int, int, float, float, float, float);
+    in property <float> inline-x;
+    in property <float> inline-y;
+    in property <float> inline-width;
+    in property <float> inline-height;
+    in property <float> inline-font-size: 17;
+    in property <bool> inline-math: false;
+    in property <image> inline-formula-preview;
+    public function select-source(start: int, end: int) {
+        if root.mode == 2 { inline-input.set-selection-offsets(start,end); inline-input.focus(); }
+        else { input.set-selection-offsets(start, end); input.focus(); }
+    }
+    public function finish-inline() { root.editor-active = false; reader-focus.focus(); root.action("finish-inline"); }
+    public function focus-editor() { if root.mode == 2 { inline-input.focus(); } else { input.focus(); } }
+    public function reset-inline-scroll() { inline-scroll.viewport-y = 0px; }
+
+    MenuBar {
+        Menu { title: I18n.translate("文件", I18n.locale);
+            MenuItem { title: I18n.translate("新建", I18n.locale); shortcut: @keys(Control + N); activated => { root.action("new"); } }
+            MenuItem { title: I18n.translate("打开…", I18n.locale); shortcut: @keys(Control + O); activated => { root.action("open"); } }
+            MenuItem { title: I18n.translate("保存", I18n.locale); shortcut: @keys(Control + S); activated => { root.action("save"); } }
+            MenuItem { title: I18n.translate("另存为…", I18n.locale); shortcut: @keys(Control + Shift + S); activated => { root.action("save-as"); } }
+            MenuItem { title: I18n.translate("关闭全部文件", I18n.locale); shortcut: @keys(Control + Alt + W); activated => { root.action("close-all"); } }
+            MenuSeparator {}
+            MenuItem { title: I18n.translate("导出 HTML…", I18n.locale); activated => { root.action("export-html"); } }
+            MenuItem { title: I18n.translate("导出 PDF…", I18n.locale); activated => { root.action("export-pdf"); } }
+        }
+        Menu { title: I18n.translate("编辑", I18n.locale);
+            MenuItem { title: I18n.translate("复制", I18n.locale); shortcut: @keys(Control + C); activated => { root.action(root.editor-has-focus ? "copy-source" : "copy-reading"); } }
+            MenuItem { title: I18n.translate("剪切", I18n.locale); shortcut: @keys(Control + X); activated => { root.action("cut-source"); } }
+            MenuItem { title: I18n.translate("粘贴", I18n.locale); shortcut: @keys(Control + V); activated => { root.action("paste-source"); } }
+            MenuSeparator {}
+            MenuItem { title: I18n.translate("撤销", I18n.locale); shortcut: @keys(Control + Z); activated => { root.action("undo"); } }
+            MenuItem { title: I18n.translate("重做", I18n.locale); shortcut: @keys(Control + Shift + Z); activated => { root.action("redo"); } }
+            MenuItem { title: I18n.translate("复制阅读选区", I18n.locale); activated => { root.action("copy-reading"); } }
+            MenuItem { title: I18n.translate("查找与替换", I18n.locale); shortcut: @keys(Control + F); activated => { root.search-visible = !root.search-visible; } }
+        }
+        Menu { title: I18n.translate("格式", I18n.locale);
+            MenuItem { title: I18n.translate("粗体", I18n.locale); shortcut: @keys(Control + B); activated => { root.format("bold"); } }
+            MenuItem { title: I18n.translate("斜体", I18n.locale); shortcut: @keys(Control + I); activated => { root.format("italic"); } }
+            MenuItem { title: I18n.translate("链接", I18n.locale); shortcut: @keys(Control + K); activated => { root.format("link"); } }
+            MenuItem { title: I18n.translate("插入图片…", I18n.locale); activated => { root.action("insert-image"); } }
+            MenuItem { title: I18n.translate("行内代码", I18n.locale); shortcut: @keys(Control + E); activated => { root.format("code"); } }
+            MenuItem { title: I18n.translate("代码块", I18n.locale); shortcut: @keys(Control + Shift + E); activated => { root.format("code-block"); } }
+            MenuItem { title: I18n.translate("删除线", I18n.locale); shortcut: @keys(Control + Shift + X); activated => { root.format("strike"); } }
+            MenuItem { title: I18n.translate("一级标题", I18n.locale); shortcut: @keys(Control + "1"); activated => { root.format("h1"); } }
+            MenuItem { title: I18n.translate("二级标题", I18n.locale); shortcut: @keys(Control + "2"); activated => { root.format("h2"); } }
+            MenuItem { title: I18n.translate("三级标题", I18n.locale); shortcut: @keys(Control + "3"); activated => { root.format("h3"); } }
+            MenuItem { title: I18n.translate("无序列表", I18n.locale); shortcut: @keys(Control + Shift + "8"); activated => { root.format("list"); } }
+            MenuItem { title: I18n.translate("任务列表", I18n.locale); activated => { root.format("task"); } }
+            MenuItem { title: I18n.translate("引用", I18n.locale); shortcut: @keys(Control + Shift + "9"); activated => { root.format("quote"); } }
+        }
+        Menu { title: I18n.translate("视图", I18n.locale);
+            MenuItem { title: I18n.translate("源码", I18n.locale); activated => { root.mode = 0; } }
+            MenuItem { title: I18n.translate("分栏", I18n.locale); activated => { root.mode = 1; } }
+            MenuItem { title: I18n.translate("即时编辑（实验性）", I18n.locale); activated => { root.mode = 2; root.editor-active = false; } }
+            MenuItem { title: I18n.translate("阅读", I18n.locale); activated => { root.mode = 3; } }
+            MenuItem { title: I18n.translate("排版设置", I18n.locale); activated => { root.settings-visible = true; } }
+        }
+    }
+
+    changed preview-width => { root.resize-preview(); }
+    changed preview-height => { root.resize-preview(); }
+    changed mode => { if root.mode == 3 || root.mode == 2 { reader-focus.focus(); } root.action("mode-change"); }
+
+    Rectangle { x: 0px; y: 0px; width: root.width; height: root.height;
+    VerticalLayout {
+        spacing: 0px;
+        Rectangle {
+            height: 44px; background: Design.paper;
+            HorizontalLayout {
+                padding-left: 10px; padding-right: 10px; padding-top: 5px; padding-bottom: 5px; spacing: 6px;
+                Action { width: 32px; height: 32px; has-icon: true; icon: @image-url("icons/sidebar.svg"); hint: I18n.translate("显示文件栏", I18n.locale); triggered => { root.sidebar-visible = !root.sidebar-visible; } }
+                tabs-area := Rectangle { horizontal-stretch: 1;
+                    HorizontalLayout { spacing: 3px;
+                        for tab[i] in root.tabs: Rectangle {
+                            horizontal-stretch: 1; min-width: 58px; max-width: 176px;
+                            border-radius: 7px;
+                            background: i == root.active-tab ? Design.active : tab-touch.has-hover ? Design.hover : transparent;
+                            tab-touch := TouchArea { mouse-cursor: pointer; clicked => { root.tab-clicked(i); } }
+                            HorizontalLayout { padding-left: 9px; padding-right: 2px; spacing: 2px;
+                                Text {
+                                    horizontal-stretch: 1;
+                                    text: (tab.dirty ? "●  " : "") + tab.label;
+                                    color: i == root.active-tab ? Design.accent : Design.ink;
+                                    overflow: elide; vertical-alignment: center; font-size: 11px;
+                                }
+                                Action { label: "×"; width: 24px; height: 28px; hint: I18n.translate("关闭文档", I18n.locale); triggered => { root.tab-closed(i); } }
+                            }
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                    }
+                }
+                if !root.compact: Rectangle {
+                    border-radius: 8px; background: Design.panel; width: 218px; height: 32px;
+                    HorizontalLayout { padding: 2px; spacing: 1px;
+                        Action { height: 28px; label: I18n.translate("源码", I18n.locale); selected: root.mode == 0; triggered => { root.mode = 0; } }
+                        Action { height: 28px; label: I18n.translate("分栏", I18n.locale); selected: root.mode == 1; triggered => { root.mode = 1; } }
+                        Action { height: 28px; label: I18n.translate("即时", I18n.locale); selected: root.mode == 2; triggered => { root.mode = 2; root.editor-active = false; } }
+                        Action { height: 28px; label: I18n.translate("阅读", I18n.locale); selected: root.mode == 3; triggered => { root.mode = 3; } }
+                    }
+                }
+                Action { width: 32px; height: 32px; label: "···"; hint: I18n.translate("命令、查找与导出", I18n.locale); triggered => { root.commands-visible = !root.commands-visible; } }
+            }
+        }
+        Divider {}
+        if root.search-visible: Rectangle {
+            height: root.compact ? 104px : 60px; background: Design.panel;
+            VerticalLayout { padding: 10px; spacing: 6px;
+                HorizontalLayout { spacing: 8px;
+                    query := LineEdit { placeholder-text: I18n.translate("查找文档…", I18n.locale); accepted => { root.search(self.text, replacement.text, regex.checked, false); } }
+                    replacement := LineEdit { placeholder-text: I18n.translate("替换为…", I18n.locale); }
+                    regex := CheckBox { text: ".*"; }
+                    Action { label: I18n.translate("查找", I18n.locale); triggered => { root.search(query.text, replacement.text, regex.checked, false); } }
+                    Action { label: I18n.translate("全部替换", I18n.locale); triggered => { root.search(query.text, replacement.text, regex.checked, true); } }
+                }
+                Text { text: root.search-result; color: Design.muted; font-size: 10px; }
+            }
+        }
+        HorizontalLayout {
+            spacing: 0px;
+            if root.sidebar-visible && !root.compact: Rectangle {
+                width: root.sidebar-width * 1px; background: Design.panel;
+                VerticalLayout { padding: 16px; spacing: 14px;
+                    HorizontalLayout { spacing: 5px;
+                        Action { has-icon: true; label: I18n.translate("新建", I18n.locale); icon: @image-url("icons/plus.svg"); triggered => { root.action("new"); } }
+                        Action { has-icon: true; label: I18n.translate("打开", I18n.locale); icon: @image-url("icons/folder.svg"); triggered => { root.action("open"); } }
+                    }
+                    HorizontalLayout {
+                        Text { text: root.folder-name; font-size: 11px; font-weight: 600; color: Design.muted; overflow: elide; vertical-alignment: center; }
+                        Action { label: "···"; width: 32px; hint: I18n.translate("选择文件夹", I18n.locale); triggered => { root.action("folder"); } }
+                    }
+                    ScrollView {
+                        VerticalLayout { spacing: 3px;
+                            for file[i] in root.files: Rectangle {
+                                height: 40px; border-radius: 7px; background: ft.has-hover ? Design.hover : transparent;
+                                HorizontalLayout { padding-left: 8px + file.depth * 12px; padding-right: 6px; spacing: 9px;
+                                    Image { source: file.folder ? @image-url("icons/folder.svg") : @image-url("icons/file.svg"); width: 16px; height: 16px; colorize: Design.muted; }
+                                    Text { text: file.label; color: Design.ink; overflow: elide; vertical-alignment: center; font-size: 12px; }
+                                }
+                                ft := TouchArea { clicked => { root.file-clicked(i); } }
+                            }
+                            Rectangle { vertical-stretch: 1; }
+                        }
+                    }
+                    Divider {}
+                    Action { has-icon: true; label: I18n.translate("排版设置", I18n.locale); icon: @image-url("icons/sun.svg"); triggered => { root.settings-visible = !root.settings-visible; } }
+                    Text { text: I18n.translate("安静地阅读，专注地写作。", I18n.locale); color: Design.muted; font-size: 10px; }
+                }
+                Rectangle { x: parent.width - 4px; width: 4px;
+                    TouchArea { mouse-cursor: ew-resize; moved => { if self.pressed { root.sidebar-width = clamp(root.sidebar-width + self.mouse-x / 1px, 180, 360); } } }
+                }
+            }
+            if root.sidebar-visible && !root.compact: Rectangle { width: 1px; background: Design.line; }
+            Rectangle {
+                horizontal-stretch: 1;
+                VerticalLayout { spacing: 0px;
+                    if root.show-source: Rectangle {
+                        height: 42px; background: Design.paper;
+                        HorizontalLayout { padding-left: 20px; padding-right: 20px; spacing: 4px;
+                            Action { label: "H₁"; hint: I18n.translate("标题", I18n.locale); triggered => { root.format("heading"); } }
+                            Action { label: "B"; hint: I18n.translate("粗体", I18n.locale); triggered => { root.format("bold"); } }
+                            Action { label: "I"; hint: I18n.translate("斜体", I18n.locale); triggered => { root.format("italic"); } }
+                            Action { label: I18n.translate("链接", I18n.locale); triggered => { root.format("link"); } }
+                            Action { label: I18n.translate("任务", I18n.locale); triggered => { root.format("task"); } }
+                            if !root.compact: Action { label: I18n.translate("代码", I18n.locale); triggered => { root.format("code"); } }
+                            Rectangle { horizontal-stretch: 1; }
+                            if root.mode == 2: Action { label: I18n.translate("完成编辑", I18n.locale); triggered => { root.finish-inline(); } }
+                        }
+                    }
+                    Rectangle {
+                        source-pane := Rectangle {
+                            x: 0px; y: 0px; height: parent.height;
+                            visible: root.show-source;
+                            width: !root.show-source ? 0px : root.show-reader ? (root.body-width - 8px) * root.split-ratio : root.body-width;
+                            background: Design.paper;
+                            VerticalLayout { padding: 20px; spacing: 10px;
+                                Text { text: root.source-label; font-size: 10px; color: Design.muted; }
+                                source-scroll := ScrollView {
+                                    changed viewport-y => {
+                                        if abs(self.viewport-y - root.synced-source-y) > 0.5px {
+                                            root.synced-source-y = self.viewport-y;
+                                            if root.mode == 1 && !root.compact && self.viewport-height > self.visible-height {
+                                                root.scroll-source(clamp(-self.viewport-y / (self.viewport-height - self.visible-height), 0, 1));
+                                            }
+                                        }
+                                    }
+                                    viewport-width: self.visible-width;
+                                    viewport-height: input.height;
+                                    
+                                    source-menu := ContextMenuArea {
+    Menu {
+        MenuItem { title: I18n.translate("复制", I18n.locale); activated => { root.action("copy-source"); } }
+        MenuItem { title: I18n.translate("剪切", I18n.locale); activated => { root.action("cut-source"); } }
+        MenuItem { title: I18n.translate("粘贴", I18n.locale); activated => { root.action("paste-source"); } }
+        MenuSeparator {}
+        MenuItem { title: I18n.translate("撤销", I18n.locale); activated => { root.action("undo"); } }
+        MenuItem { title: I18n.translate("重做", I18n.locale); activated => { root.action("redo"); } }
+        MenuSeparator {}
+        MenuItem { title: I18n.translate("粗体", I18n.locale); activated => { root.format("bold"); } }
+        MenuItem { title: I18n.translate("斜体", I18n.locale); activated => { root.format("italic"); } }
+        MenuItem { title: I18n.translate("链接", I18n.locale); activated => { root.format("link"); } }
+        MenuItem { title: I18n.translate("插入图片…", I18n.locale); activated => { root.action("insert-image"); } }
+    }
+
+                                    StyledText {
+                                        x: input.x; y: input.y; width: input.width; height: input.height;
+                                        visible: input.preedit-text == "";
+                                        text: root.highlight-source(root.source, root.theme == 1);
+                                        default-font-family: root.code-font; default-font-size: root.source-font-size * 1px;
+                                        default-color: Design.ink;
+                                        vertical-alignment: top;
+                                        accessible-role: none;
+                                    }
+                                    input := TextInput {
+                                        x: max(0px, (source-scroll.visible-width - 860px) / 2); y: 0px;
+                                        text <=> root.source;
+                                        width: max(1px, min(860px, source-scroll.visible-width - 16px));
+                                        height: max(self.preferred-height, source-scroll.visible-height);
+                                        font-family: root.code-font; font-size: root.source-font-size * 1px;
+                                        color: self.preedit-text == "" ? transparent : Design.ink; wrap: word-wrap;
+                                        single-line: false;
+                                        text-cursor-width: 2px;
+                                        selection-background-color: #477ad9;
+                                        selection-foreground-color: #ffffff;
+                                        edited => { root.edit(self.text); }
+                                        key-pressed(event) => {
+                                            if event.modifiers.control || event.modifiers.meta {
+                                                if root.shortcut(event.text, event.modifiers.shift) { return accept; }
+                                            }
+                                            return reject;
+                                        }
+                                        cursor-position-changed(pos) => {
+                                            root.source-caret-x = pos.x; root.source-caret-y = pos.y;
+                                            if self.has-focus && pos.y + source-scroll.viewport-y > source-scroll.visible-height - 32px { source-scroll.viewport-y = source-scroll.visible-height - pos.y - 32px; }
+                                            if self.has-focus && pos.y + source-scroll.viewport-y < 0px { source-scroll.viewport-y = -pos.y; }
+                                        }
+                                    }
+                                    Rectangle {
+                                        visible: input.has-focus && input.preedit-text == "";
+                                        x: input.x + root.source-caret-x; y: root.source-caret-y;
+                                        width: 2px; height: root.source-font-size * 1.2px;
+                                        background: Design.accent;
+                                    }
+                                    }
+                                }
+                                if root.has-next || root.has-previous: HorizontalLayout { spacing: 8px;
+                                    Action { label: I18n.translate("上一段", I18n.locale); triggered => { root.step(-1); source-scroll.viewport-y = 0px; } }
+                                    Slider { value <=> root.document-position; minimum: 0; maximum: 1; changed(value) => { root.navigate(value); source-scroll.viewport-y = 0px; } }
+                                    Action { label: I18n.translate("下一段", I18n.locale); triggered => { root.step(1); source-scroll.viewport-y = 0px; } }
+                                }
+                            }
+                        }
+                        if root.show-source && root.show-reader: Rectangle {
+                            x: source-pane.width; width: 8px; height: parent.height;
+                            background: Design.paper;
+                            Rectangle { x: 3px; width: 2px; background: Design.line; }
+                            split-drag := TouchArea {
+                                mouse-cursor: ew-resize;
+                                moved => { if self.pressed { root.split-ratio = clamp((source-pane.width + self.mouse-x) / (root.body-width - 8px), 0.25, 0.75); } }
+                                double-clicked => { root.split-ratio = 0.5; }
+                            }
+                            Tooltip { text: @markdown("\{I18n.translate("拖动调整分栏比例，双击恢复均分", I18n.locale)}"); }
+                        }
+                        reader := Rectangle {
+                            x: root.show-source ? source-pane.width + 8px : 0px;
+                            visible: root.show-reader; horizontal-stretch: root.show-reader ? 1 : 0;
+                            width: !root.show-reader ? 0px : root.show-source ? (root.body-width - 8px) * (1 - root.split-ratio) : root.body-width;
+                            clip: true; background: Design.paper;
+                            reader-focus := FocusScope {
+                                key-pressed(event) => {
+                                    if (event.modifiers.control || event.modifiers.meta) && event.text.to-lowercase() == "c" { root.action("copy-reading"); return accept; }
+                                    return reject;
+                                }
+                            }
+                            Image { source: root.preview; width: root.frame-width * 1px; height: root.frame-height * 1px; image-fit: fill; }
+                            reading-menu := ContextMenuArea {
+                                Menu {
+                                    MenuItem { title: I18n.translate("复制选区", I18n.locale); activated => { root.action("copy-reading"); } }
+                                    MenuItem { title: I18n.translate("查找…", I18n.locale); activated => { root.search-visible = true; } }
+                                    MenuSeparator {}
+                                    MenuItem { title: I18n.translate("即时编辑", I18n.locale); activated => { root.mode = 2; } }
+                                    MenuItem { title: I18n.translate("排版设置…", I18n.locale); activated => { root.settings-visible = true; } }
+                                }
+                            read-touch := TouchArea {
+                                mouse-cursor: text;
+                                scroll-event(event) => { root.scroll-preview(-event.delta-y / 1px); return accept; }
+                                pointer-event(event) => {
+                                    if event.button == PointerEventButton.right && event.kind == PointerEventKind.up {
+                                        reading-menu.show({x: self.mouse-x, y: self.mouse-y});
+                                    }
+                                    if event.button == PointerEventButton.left {
+                                        if event.kind == PointerEventKind.down { reader-focus.focus(); if root.mode != 2 { root.select-reading(0, self.mouse-x / 1px, self.mouse-y / 1px); } }
+                                        if event.kind == PointerEventKind.up && root.mode != 2 { root.select-reading(2, self.mouse-x / 1px, self.mouse-y / 1px); }
+                                    }
+
+                                }
+                                moved => { if self.pressed && root.mode != 2 { root.select-reading(1, self.mouse-x / 1px, self.mouse-y / 1px); } }
+                                clicked => { if root.mode == 2 { root.open-inline(self.mouse-x / 1px, self.mouse-y / 1px); } }
+                            }
+                            }
+                            inline-editor := Rectangle {
+                                visible: root.mode == 2 && root.editor-active;
+                                x: root.inline-x * 1px;
+                                y: root.inline-math
+                                    ? clamp(root.inline-y * 1px - max(0px, (self.height - root.inline-height * 1px) / 2), 8px, max(8px, reader.height - self.height - 8px))
+                                    : root.inline-y * 1px;
+                                width: max(1px, root.inline-width * 1px);
+                                // Display math gets a floating editor without changing DOM flow.
+                                height: root.inline-math ? max(180px, root.inline-height * 1px) : max(24px, root.inline-height * 1px);
+                                background: Design.paper;
+                                clip: true;
+                                border-width: root.inline-math ? 1px : 0px;
+                                border-color: Design.line;
+                                border-radius: root.inline-math ? 8px : 0px;
+                                if root.inline-math: Text {
+                                    x: 12px; y: 7px; text: I18n.translate("公式源码", I18n.locale); color: Design.muted; font-size: 10px;
+                                }
+                                ContextMenuArea {
+                                    x: 0px; y: root.inline-math ? 24px : 0px;
+                                    width: root.inline-math ? (parent.width - 1px) / 2 : parent.width;
+                                    height: root.inline-math ? parent.height - 24px : parent.height;
+    Menu {
+        MenuItem { title: I18n.translate("复制", I18n.locale); activated => { root.action("copy-source"); } }
+        MenuItem { title: I18n.translate("剪切", I18n.locale); activated => { root.action("cut-source"); } }
+        MenuItem { title: I18n.translate("粘贴", I18n.locale); activated => { root.action("paste-source"); } }
+        MenuSeparator {}
+        MenuItem { title: I18n.translate("撤销", I18n.locale); activated => { root.action("undo"); } }
+        MenuItem { title: I18n.translate("重做", I18n.locale); activated => { root.action("redo"); } }
+        MenuSeparator {}
+        MenuItem { title: I18n.translate("粗体", I18n.locale); activated => { root.format("bold"); } }
+        MenuItem { title: I18n.translate("斜体", I18n.locale); activated => { root.format("italic"); } }
+        MenuItem { title: I18n.translate("链接", I18n.locale); activated => { root.format("link"); } }
+        MenuItem { title: I18n.translate("插入图片…", I18n.locale); activated => { root.action("insert-image"); } }
+    }
+
+                                    inline-scroll := InlineScrollView {
+                                        width: parent.width; height: parent.height;
+                                        viewport-width: self.visible-width;
+                                        viewport-height: max(self.visible-height, inline-input.preferred-height);
+                                        inline-input := TextInput {
+                                            text <=> root.source;
+                                            width: max(1px, inline-scroll.visible-width - 10px); height: self.preferred-height;
+                                            single-line: false;
+                                            font-size: root.inline-font-size * 1px;
+                                            color: Design.ink; wrap: word-wrap;
+                                            text-cursor-width: 2px;
+                                            selection-background-color: #477ad9; selection-foreground-color: #ffffff;
+                                            edited => { root.edit(self.text); }
+                                            key-pressed(event) => {
+                                                if event.text == Key.Escape { root.finish-inline(); return accept; }
+                                                if event.modifiers.control || event.modifiers.meta { if root.shortcut(event.text, event.modifiers.shift) { return accept; } }
+                                                return reject;
+                                            }
+                                            cursor-position-changed(pos) => {
+                                                if self.has-focus && pos.y + inline-scroll.viewport-y > inline-scroll.visible-height - root.inline-font-size * 1.4px {
+                                                    inline-scroll.viewport-y = inline-scroll.visible-height - pos.y - root.inline-font-size * 1.4px;
+                                                }
+                                                if self.has-focus && pos.y + inline-scroll.viewport-y < 0px { inline-scroll.viewport-y = -pos.y; }
+                                            }
+                                        }
+                                    }
+                                }
+                                if root.inline-math: Rectangle {
+                                    x: (parent.width - 1px) / 2; width: 1px; background: Design.line;
+                                }
+                                if root.inline-math: Rectangle {
+                                    x: (parent.width + 1px) / 2; width: (parent.width - 1px) / 2;
+                                    background: Design.panel;
+                                    Text { x: 12px; y: 7px; text: I18n.translate("公式预览", I18n.locale); color: Design.muted; font-size: 10px; }
+                                    Image {
+                                        x: 10px; y: 24px; width: parent.width - 20px; height: parent.height - 34px;
+                                        source: root.inline-formula-preview; image-fit: contain;
+                                    }
+                                }
+                            }
+                            ThinScrollBar {
+                                x: parent.width - self.width; height: parent.height;
+                                maximum: root.preview-max; page: parent.height / 1px;
+                                value: root.preview-position;
+                                changed(v) => { root.scroll-preview(v - root.preview-position); }
+                            }
+                            if root.busy && root.preview-max == 0 && root.frame-width == 0: Rectangle {
+                                x: parent.width - 104px; y: 12px; width: 88px; height: 26px; border-radius: 8px; background: Design.panel;
+                                Text { text: I18n.translate("正在排版…", I18n.locale); color: Design.muted; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; }
+                            }
+                            if root.mode == 2: Rectangle {
+                                y: parent.height - 44px; x: (parent.width - 220px) / 2; width: 220px; height: 28px; background: Design.panel; border-radius: 8px;
+                                Text { text: I18n.translate("单击段落直接编辑 · Esc 完成", I18n.locale); color: Design.muted; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; }
+                            }
+                        }
+                    }
+                }
+            }
+            if root.outline-visible && !root.compact: Rectangle {
+                width: 196px; background: Design.paper;
+                VerticalLayout { padding: 20px; spacing: 16px;
+                    Text { text: I18n.translate("本页目录", I18n.locale); color: Design.muted; font-size: 11px; font-weight: 600; }
+                    ScrollView { VerticalLayout { spacing: 4px;
+                        for heading[i] in root.headings: Rectangle {
+                            height: 32px; background: ht.has-hover ? Design.hover : transparent; border-radius: 6px;
+                            Text { x: (heading.level - 1) * 8px + 4px; width: parent.width - self.x; text: heading.label; font-size: 11px; color: Design.muted; overflow: elide; vertical-alignment: center; }
+                            ht := TouchArea { clicked => { root.heading-clicked(i); } }
+                        }
+                        Rectangle { vertical-stretch: 1; }
+                    } }
+                }
+            }
+        }
+        Divider {}
+        Rectangle { height: root.compact ? 48px : 28px; background: Design.paper;
+            HorizontalLayout { padding-left: 20px; padding-right: 20px; spacing: 12px;
+                if root.compact: Action { label: root.show-source ? I18n.translate("阅读", I18n.locale) : I18n.translate("编辑", I18n.locale); triggered => { root.mode = root.show-source ? 3 : 0; } }
+                if root.compact: Action { label: I18n.translate("打开", I18n.locale); triggered => { root.action("open"); } }
+                if root.compact: Action { label: I18n.translate("排版", I18n.locale); triggered => { root.settings-visible = !root.settings-visible; } }
+                Text { text: root.status; color: root.dirty ? Design.accent : Design.muted; font-size: 10px; vertical-alignment: center; overflow: elide; }
+                Rectangle { horizontal-stretch: 1; }
+                if !root.compact: Text { text: root.statistics; color: Design.muted; font-size: 10px; vertical-alignment: center; }
+            }
+        }
+    }
+
+    }
+    if root.notice != "": Rectangle {
+        x: max(12px, (root.width - 560px) / 2); y: root.height - 92px;
+        width: min(560px, root.width - 24px); height: 48px;
+        background: Design.panel; border-radius: 10px; border-width: 1px; border-color: Design.line;
+        HorizontalLayout { padding: 10px; spacing: 8px;
+            Text { text: root.notice; color: Design.ink; font-size: 12px; wrap: word-wrap; vertical-alignment: center; }
+            Action { label: "×"; min-width: 24px; triggered => { root.action("dismiss"); } }
+        }
+    }
+    if root.settings-visible || root.commands-visible: Rectangle {
+        background: #00000030;
+        TouchArea { clicked => { root.settings-visible = false; root.commands-visible = false; } }
+        Rectangle {
+            x: (parent.width - self.width) / 2; y: max(24px, (parent.height - self.height) / 2);
+            width: min(440px, parent.width - 32px); height: min(parent.height - 48px, root.settings-visible ? 580px : 420px);
+            border-radius: 12px; background: Design.paper; border-width: 1px; border-color: Design.line;
+            TouchArea {}
+            VerticalLayout { padding: 24px; spacing: 16px;
+                HorizontalLayout {
+                    Text { text: root.settings-visible ? I18n.translate("排版与外观", I18n.locale) : I18n.translate("命令", I18n.locale); font-size: 19px; font-weight: 600; color: Design.ink; }
+                    Action { label: "×"; triggered => { root.settings-visible = false; root.commands-visible = false; } }
+                }
+                if root.settings-visible: ScrollView { VerticalLayout { spacing: 10px;
+                    Text { text: I18n.translate("语言", I18n.locale); color: Design.muted; font-size: 12px; }
+                    ComboBox {
+                        model: [I18n.translate("跟随系统", I18n.locale), "简体中文", "繁體中文", "English", "日本語", "한국어", "Français", "Deutsch", "Русский", "Español"];
+                        current-index <=> root.language-index;
+                        selected(value) => { root.language-changed(self.current-index); }
+                    }
+                    Text { text: I18n.translate("主题", I18n.locale); color: Design.muted; font-size: 12px; }
+                    HorizontalLayout { spacing: 8px;
+                        Action { label: I18n.translate("暖白", I18n.locale); selected: root.theme == 0; triggered => { root.theme = 0; root.appearance(); } }
+                        Action { label: I18n.translate("石墨", I18n.locale); selected: root.theme == 1; triggered => { root.theme = 1; root.appearance(); } }
+                        Action { label: I18n.translate("暖纸", I18n.locale); selected: root.theme == 2; triggered => { root.theme = 2; root.appearance(); } }
+                    }
+                    Text { text: I18n.translate("源码字号 · ", I18n.locale) + round(root.source-font-size); color: Design.muted; font-size: 12px; }
+                    Slider { value <=> root.source-font-size; minimum: 11; maximum: 24; changed => { root.appearance(); } }
+                    Text { text: I18n.translate("正文字号 · ", I18n.locale) + round(root.font-size); color: Design.muted; font-size: 12px; }
+                    Slider { value <=> root.font-size; minimum: 13; maximum: 28; changed => { root.appearance(); } }
+                    Text { text: I18n.translate("阅读行高 · ", I18n.locale) + round(root.line-height * 100) / 100; color: Design.muted; font-size: 12px; }
+                    Slider { value <=> root.line-height; minimum: 1.2; maximum: 2.4; changed => { root.appearance(); } }
+                    Text { text: I18n.translate("段落间距 · ", I18n.locale) + round(root.paragraph-spacing); color: Design.muted; font-size: 12px; }
+                    Slider { value <=> root.paragraph-spacing; minimum: 0; maximum: 40; changed => { root.appearance(); } }
+                    Text { text: I18n.translate("版心宽度 · ", I18n.locale) + round(root.reading-width); color: Design.muted; font-size: 12px; }
+                    Slider { value <=> root.reading-width; minimum: 520; maximum: 1040; changed => { root.appearance(); } }
+                }
+                }
+                if root.commands-visible: VerticalLayout { spacing: 6px;
+                    Action { has-icon: true; label: I18n.translate("新建文档", I18n.locale); icon: @image-url("icons/plus.svg"); triggered => { root.commands-visible = false; root.action("new"); } }
+                    Action { has-icon: true; label: I18n.translate("打开文件夹", I18n.locale); icon: @image-url("icons/folder.svg"); triggered => { root.commands-visible = false; root.action("folder"); } }
+                    Action { has-icon: true; label: I18n.translate("另存为…", I18n.locale); icon: @image-url("icons/save.svg"); triggered => { root.commands-visible = false; root.action("save-as"); } }
+                    Action { has-icon: true; label: I18n.translate("导出 HTML", I18n.locale); icon: @image-url("icons/export.svg"); triggered => { root.commands-visible = false; root.action("export-html"); } }
+                    Action { has-icon: true; label: I18n.translate("导出 PDF", I18n.locale); icon: @image-url("icons/export.svg"); triggered => { root.commands-visible = false; root.action("export-pdf"); } }
+                    Action { label: I18n.translate("撤销  ·  Ctrl/Cmd Z", I18n.locale); triggered => { root.action("undo"); } }
+                    Action { label: I18n.translate("重做  ·  Ctrl/Cmd Y", I18n.locale); triggered => { root.action("redo"); } }
+                    Action { has-icon: true; label: I18n.translate("排版设置", I18n.locale); icon: @image-url("icons/sun.svg"); triggered => { root.commands-visible = false; root.settings-visible = true; } }
+                }
+                Rectangle { vertical-stretch: 1; }
+            }
+        }
+    }
+}

@@ -1,0 +1,33 @@
+name: Native desktop checks
+on: [push, pull_request]
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-2022, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98.0
+        with:
+          components: rustfmt, clippy
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: Swatinem/rust-cache@v2
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libfontconfig1-dev libxkbcommon-dev libxcb-shape0-dev libxcb-xfixes0-dev libudev-dev libssl-dev cmake clang
+      - run: python scripts/check-locales.py
+      - run: cargo fmt --all --check
+      - run: cargo test --workspace --locked
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo build --release -p hui-app --locked
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hui-${{ matrix.os }}
+          path: |
+            target/release/hui
+            target/release/hui.exe
+            vendor/katex/katex.min.css
+            vendor/katex/fonts

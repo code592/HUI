@@ -1,0 +1,16 @@
+{
+  "reference": {
+    "katex": "0.16.22",
+    "mermaid": "11.12.0",
+    "markdown": "CommonMark 0.31.2 + GFM 0.29-gfm"
+  },
+  "implementation": {
+    "slint": "1.17.1",
+    "mathjax_svg": "3.2.2",
+    "blitz": "0.3.0-beta.2",
+    "merman": "0.8.0-alpha.6"
+  },
+  "status": "Reference visual parity has not yet been certified. Rendering a fixture is not a parity pass.",
+  "fixtures": ["fixtures/compatibility.md", "fixtures/security.md"],
+  "required_manual_checks": ["fixed-font layout", "CJK and RTL", "formula baseline", "Mermaid labels and edges", "static HTML/CSS", "links and selection", "PDF page breaks", "screen reader", "IME"]
+}

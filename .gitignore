@@ -1,0 +1,14 @@
+/target/
+/.build/
+/dist/
+.DS_Store
+*.log
+
+
+# Local historical validation artifacts; publish only reviewed screenshots/docs.
+/docs/VALIDATION.md
+/docs/INTERACTION-FIXES.md
+/docs/DESKTOP-BUILD-2026-09-08.md
+/docs/screenshots/*
+!/docs/screenshots/logo-preview.png
+!/docs/screenshots/i18n-*.png

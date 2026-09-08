@@ -1,0 +1,2 @@
+// Include in the iOS host target, and add Assets.xcassets to its resources.
+ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
