@@ -298,7 +298,7 @@ export component AppWindow inherits Window {
                     }
                 }
                 if !root.compact: Rectangle {
-                    border-radius: 8px; background: Design.panel; width: 218px; height: 32px;
+                    border-radius: 8px; background: Design.panel; horizontal-stretch: 0; height: 32px;
                     HorizontalLayout { padding: 2px; spacing: 1px;
                         Action { height: 28px; label: I18n.translate("源码", I18n.locale); selected: root.mode == 0; triggered => { root.mode = 0; } }
                         Action { height: 28px; label: I18n.translate("分栏", I18n.locale); selected: root.mode == 1; triggered => { root.mode = 1; } }
