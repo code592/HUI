@@ -47,11 +47,14 @@ public final class SmokeInstrumentation extends Instrumentation {
                 if (dirs != null) for (File dir : dirs) if (!previous.contains(dir.getName())) {
                     File candidate = new File(dir, "Document.md");
                     File config = new File(getTargetContext().getFilesDir(), "profile/preferences.json");
-                    if (candidate.isFile() && config.isFile() && new String(java.nio.file.Files.readAllBytes(config.toPath()), StandardCharsets.UTF_8).contains(candidate.toString())) imported = candidate;
+                    if (candidate.isFile() && config.isFile() && new String(java.nio.file.Files.readAllBytes(config.toPath()), StandardCharsets.UTF_8).contains(candidate.getCanonicalPath())) imported = candidate;
                 }
                 if (imported == null) android.os.SystemClock.sleep(100);
             }
-            check(imported != null, "Content URI did not reach the Rust document controller");
+            if (imported == null) {
+                File config = new File(getTargetContext().getFilesDir(), "profile/preferences.json");
+                throw new AssertionError("Content URI did not reach the Rust document controller: " + (config.isFile() ? new String(java.nio.file.Files.readAllBytes(config.toPath()), StandardCharsets.UTF_8) : "no preferences"));
+            }
             check(java.util.Arrays.equals(java.nio.file.Files.readAllBytes(imported.toPath()), original), "URI import changed document bytes");
             write(local, edited);
             prefs.edit().putString(local+".uri", uri.toString()).putString(local+".sha", sha(original)).commit();
