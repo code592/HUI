@@ -27,7 +27,7 @@
 
 ## 平台
 
-macOS 套件為 Apple Silicon；Windows 與 Linux 提供 x64/ARM64。已在目前 macOS、Windows 11 ARM 虛擬機（x64 透過系統模擬）及 Linux 容器進行基本執行檢查。Windows 10 LTSC 2021 / Windows 10 22H2、macOS 12/Intel、所有實體桌面及行動裝置尚未完整驗收。目標相容性不代表已驗證。
+macOS 套件為 Apple Silicon；Windows 與 Linux 提供 x64/ARM64，Android 提供 ARM64 預覽套件。本批驗證使用 Windows Server 2022 CI、Linux 容器與 Android API 36 模擬器；Windows ARM64 僅完成建置檢查。早期 Windows 11 ARM 虛擬機紀錄不代表本批套件已通過實機驗收。Windows 10 LTSC 2021 / 22H2、macOS 12/Intel、Android 10 最低版本及完整實機矩陣仍待驗證。詳見 [本次驗證紀錄](docs/PLATFORM-VALIDATION.md)。
 
 ## 語言與字型
 

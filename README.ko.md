@@ -27,7 +27,7 @@
 
 ## 플랫폼
 
-macOS 패키지는 Apple Silicon용이며 Windows와 Linux는 x64/ARM64용입니다. 현재 macOS, Windows 11 ARM 가상 머신(x64는 시스템 에뮬레이션), Linux 컨테이너에서 기본 실행을 확인했습니다. Windows 10 LTSC 2021 / Windows 10 22H2, macOS 12/Intel, 모든 실제 데스크톱 및 모바일 기기의 인수 테스트는 완료되지 않았습니다. 호환성 목표가 검증 완료를 뜻하지는 않습니다.
+macOS 패키지는 Apple Silicon용이며 Windows와 Linux는 x64/ARM64, Android는 ARM64 미리보기 버전을 제공합니다. 이번 검증은 Windows Server 2022 CI, Linux 컨테이너, Android API 36 에뮬레이터에서 진행하며 Windows ARM64는 빌드만 확인했습니다. 이전 Windows 11 ARM 가상 머신 결과가 이번 패키지의 실기기 검증을 의미하지는 않습니다. Windows 10 LTSC 2021 / 22H2, macOS 12/Intel, 최소 버전 Android 10 및 전체 실기기 검증은 미완료입니다. [검증 기록](docs/PLATFORM-VALIDATION.md)을 참고하세요.
 
 ## 언어와 글꼴
 

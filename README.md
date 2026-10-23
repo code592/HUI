@@ -27,7 +27,7 @@
 
 ## 平台
 
-macOS 包为 Apple Silicon；Windows 和 Linux 提供 x64/ARM64。已在当前 macOS、Windows 11 ARM 虚拟机（x64 通过系统仿真）及 Linux 容器中做基础运行检查。Windows 10 LTSC 2021 / Windows 10 22H2、macOS 12/Intel、全部真实桌面与移动设备尚未完整验收。目标兼容性不等于已经验证。
+macOS 包为 Apple Silicon；Windows 和 Linux 提供 x64/ARM64，Android 提供 ARM64 预览包。本批验证使用 Windows Server 2022 CI、Linux 容器和 Android API 36 模拟器；Windows ARM64 仅完成构建检查。早期 Windows 11 ARM 虚拟机记录不代表本批包已通过实机验收。Windows 10 LTSC 2021 / 22H2、macOS 12/Intel、Android 10 最低版本及完整真机矩阵仍待验证。详见 [本次验证记录](docs/PLATFORM-VALIDATION.md)。
 
 ## 语言与字体
 

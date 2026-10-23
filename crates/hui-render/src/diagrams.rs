@@ -39,10 +39,23 @@ fn fonts() -> Result<Arc<usvg::fontdb::Database>> {
         .get_or_init(|| {
             let mut db = usvg::fontdb::Database::new();
             db.load_system_fonts();
+            // fontdb's system discovery explicitly excludes Android. Read the platform
+            // fonts ourselves; otherwise SVG text is silently dropped during outlining.
+            #[cfg(target_os = "android")]
+            {
+                db.load_fonts_dir("/system/fonts");
+                db.load_fonts_dir("/product/fonts");
+                db.set_sans_serif_family("Roboto");
+                db.set_serif_family("Noto Serif");
+                db.set_monospace_family("Droid Sans Mono");
+            }
             #[cfg(target_os = "windows")]
             db.load_font_source(usvg::fontdb::Source::Binary(
                 crate::native::windows_font_bytes().map_err(|error| error.to_string())?,
             ));
+            if db.is_empty() {
+                return Err("No fonts available for Mermaid labels".to_owned());
+            }
             Ok(Arc::new(db))
         })
         .clone()

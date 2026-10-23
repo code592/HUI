@@ -27,7 +27,7 @@ Wählen Sie Ihre Architektur unter [Releases](https://github.com/code592/HUI/rel
 
 ## Plattformen
 
-Das macOS-Paket ist für Apple Silicon; Windows und Linux bieten x64/ARM64. Grundlegende Laufzeitprüfungen erfolgten auf dem aktuellen Mac, einer Windows-11-ARM-VM (x64 mit Systememulation) und in Linux-Containern. Windows 10 LTSC 2021 / Windows 10 22H2, macOS 12/Intel, alle physischen Desktops und Mobilgeräte haben die Abnahme noch nicht abgeschlossen. Kompatibilitätsziele sind keine Prüfbestätigungen.
+Das macOS-Paket ist für Apple Silicon; Windows und Linux bieten x64/ARM64, Android eine ARM64-Vorschau. Diese Pakete werden in Windows-Server-2022-CI, Linux-Containern und einem Android-API-36-Emulator geprüft; für Windows ARM64 ist nur der Build geprüft. Frühere Ergebnisse einer Windows-11-ARM-VM bestätigen nicht die Abnahme dieser Pakete. Windows 10 LTSC 2021 / 22H2, macOS 12/Intel, die Mindestversion Android 10 und die vollständige Prüfung auf physischen Geräten stehen noch aus. Siehe [Prüfbericht](docs/PLATFORM-VALIDATION.md).
 
 ## Sprachen und Schriften
 

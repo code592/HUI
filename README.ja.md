@@ -27,7 +27,7 @@
 
 ## プラットフォーム
 
-macOS は Apple Silicon、Windows と Linux は x64/ARM64 向けです。現在の macOS、Windows 11 ARM 仮想マシン（x64 はシステムのエミュレーション）、Linux コンテナーで基本動作を確認しています。Windows 10 LTSC 2021 / Windows 10 22H2、macOS 12/Intel、すべての実機やモバイル端末の受け入れ試験は未完了です。対応目標は検証済みという意味ではありません。
+macOS は Apple Silicon、Windows と Linux は x64/ARM64 向けで、Android は ARM64 プレビュー版です。今回の検証環境は Windows Server 2022 CI、Linux コンテナー、Android API 36 エミュレーターです。Windows ARM64 はビルドのみ確認しています。以前の Windows 11 ARM 仮想マシンでの結果は、今回のパッケージの実機検証を意味しません。Windows 10 LTSC 2021 / 22H2、macOS 12/Intel、最低対応の Android 10、および実機での総合検証は未完了です。[検証記録](docs/PLATFORM-VALIDATION.md)を参照してください。
 
 ## 言語とフォント
 

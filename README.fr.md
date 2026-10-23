@@ -27,7 +27,7 @@ Choisissez votre architecture dans [Releases](https://github.com/code592/HUI/rel
 
 ## Plateformes
 
-Le paquet macOS vise Apple Silicon ; Windows et Linux proposent x64/ARM64. Des contrôles de base ont été réalisés sur le Mac actuel, une VM Windows 11 ARM (x64 sous émulation système) et des conteneurs Linux. Windows 10 LTSC 2021 / Windows 10 22H2, macOS 12/Intel, l’ensemble des bureaux physiques et les appareils mobiles n’ont pas terminé les tests d’acceptation. Une cible de compatibilité n’est pas une validation.
+Le paquet macOS vise Apple Silicon ; Windows et Linux proposent x64/ARM64, et Android une préversion ARM64. Cette série est vérifiée sur Windows Server 2022 en CI, dans des conteneurs Linux et sur un émulateur Android API 36 ; seul le build est vérifié pour Windows ARM64. Les anciens résultats sur une VM Windows 11 ARM ne valident pas ces paquets. Windows 10 LTSC 2021 / 22H2, macOS 12/Intel, le minimum Android 10 et la matrice complète des appareils physiques restent à vérifier. Voir le [rapport de validation](docs/PLATFORM-VALIDATION.md).
 
 ## Langues et polices
 
