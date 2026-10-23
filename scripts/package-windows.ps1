@@ -15,6 +15,8 @@ Copy-Item -Force "$targetDir/$target/release/hui.exe" $bundle
 Copy-Item -Force packaging/windows/hui.ico $bundle
 Copy-Item -Force vendor/katex/katex.min.css,vendor/katex/LICENSE "$bundle/assets/katex"
 Copy-Item -Force vendor/katex/fonts "$bundle/assets/katex" -Recurse
+Copy-Item -Force vendor/fonts/NotoSansCJKsc-Regular.otf "$bundle/assets/katex/fonts"
+Copy-Item -Force vendor/fonts/OFL.txt "$bundle/licenses/Noto-CJK-OFL.txt"
 Copy-Item -Force LICENSE "$bundle/licenses/HUI-LICENSE"
 Copy-Item -Force vendor/mathjax/LICENSE "$bundle/licenses/MathJax-LICENSE"
 Copy-Item -Force vendor/slint/LICENSE.md "$bundle/licenses/Slint-LICENSE.md"

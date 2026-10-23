@@ -37,5 +37,8 @@ jni = "0.21.1"
 objc2 = "0.6.4"
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSArray", "NSString"] }
 
+[target.'cfg(target_os = "windows")'.dependencies]
+slint = { version = "=1.17.1", default-features = false, features = ["unstable-fontique-010"] }
+
 [build-dependencies]
 slint-build = "=1.17.1"

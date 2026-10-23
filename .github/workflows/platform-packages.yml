@@ -48,6 +48,10 @@ jobs:
             $process = Start-Process -FilePath $app -ArgumentList '--render','packaging/smoke/multilingual.md',$output -Wait -PassThru
             if ($process.ExitCode -ne 0 -or !(Test-Path $output) -or (Get-Item $output).Length -eq 0) { throw "Native render failed: $format" }
           }
+          $env:HUI_LANGUAGE = 'zh-CN'
+          $uiOutput = '.build/ci/windows-x64-ui.png'
+          $process = Start-Process -FilePath $app -ArgumentList '--screenshot',$uiOutput,'split' -Wait -PassThru
+          if ($process.ExitCode -ne 0 -or !(Test-Path $uiOutput)) { throw 'Native UI screenshot failed' }
       - uses: actions/upload-artifact@v4
         with:
           name: HUI-windows-${{ matrix.arch }}

@@ -28,6 +28,8 @@ for system in ('windows', 'linux'):
                 assert exe[pe:pe + 4] == b'PE\0\0'
                 assert struct.unpack_from('<H', exe, pe + 4)[0] == {'x64': 0x8664, 'arm64': 0xaa64}[arch]
                 assert read('hui.ico') and read('assets/katex/katex.min.css')
+                assert read('assets/katex/fonts/NotoSansCJKsc-Regular.otf')[:4] == b'OTTO'
+                assert b'SIL OPEN FONT LICENSE' in read('licenses/Noto-CJK-OFL.txt')
                 crt = read('vcruntime140.dll')
                 crt_pe = struct.unpack_from('<I', crt, 0x3c)[0]
                 assert struct.unpack_from('<H', crt, crt_pe + 4)[0] == {'x64': 0x8664, 'arm64': 0xaa64}[arch]

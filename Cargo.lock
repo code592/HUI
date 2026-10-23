@@ -2643,6 +2643,7 @@ dependencies = [
  "blitz-html",
  "blitz-paint",
  "blitz-traits",
+ "fontique 0.11.1",
  "merman",
  "png",
  "pulldown-cmark",

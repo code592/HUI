@@ -16,6 +16,7 @@ Key bundled components:
 | KaTeX 0.16.22 | Formula validation, exported CSS/fonts | [MIT license](vendor/katex/LICENSE) and upstream distribution; [source](https://github.com/KaTeX/KaTeX) |
 | MathJax 3.2.2 | Formula SVG output | [Apache-2.0](vendor/mathjax/LICENSE); [source](https://github.com/mathjax/MathJax) |
 | merman 0.8.0-alpha.6 | Native diagram rendering | MIT OR Apache-2.0; [source](https://github.com/Latias94/merman) |
+| Noto Sans CJK SC Regular | Offline Windows UI/document CJK fallback | [SIL OFL 1.1](vendor/fonts/OFL.txt); [pinned source](https://github.com/notofonts/noto-cjk/tree/f8d157532fbfaeda587e826d4cd5b21a49186f7c) |
 | MSVC runtime DLLs (Windows packages) | C/C++ runtime | Microsoft Visual Studio redistributable terms; not covered by HUI's MIT license |
 
-`Cargo.lock` records exact Rust dependencies and checksums. Review each dependency's upstream license before redistributing a modified build. The list above is an overview, not a replacement for the license files. Scripts package the licenses for directly vendored assets with the application. System fonts are used from the operating system and are not redistributed by HUI. Linux users can install the separately licensed Noto CJK system package.
+`Cargo.lock` records exact Rust dependencies and checksums. Review each dependency's upstream license before redistributing a modified build. The list above is an overview, not a replacement for the license files. Scripts package the licenses for directly vendored assets with the application. System fonts are used from the operating system and are not redistributed by HUI. Windows packages additionally include the separately licensed Noto CJK font listed above. Linux users can install the separately licensed Noto CJK system package.

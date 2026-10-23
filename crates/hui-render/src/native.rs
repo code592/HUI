@@ -102,6 +102,8 @@ impl NativeDocument {
                     .to_string(),
             ),
             net_provider: Some(Arc::new(Resources { root, assets })),
+            #[cfg(target_os = "windows")]
+            font_ctx: Some(windows_font_context()?),
             ..Default::default()
         };
         let mut document = HtmlDocument::from_html(html, config);
@@ -415,6 +417,55 @@ pub fn export_pdf(
     pdf.close();
     std::fs::write(path, bytes)?;
     Ok(())
+}
+
+/// One shared, immutable copy serves the UI and document font registries.
+#[cfg(target_os = "windows")]
+pub fn windows_font_bytes() -> Result<Arc<Vec<u8>>> {
+    static DATA: std::sync::OnceLock<std::result::Result<Arc<Vec<u8>>, String>> =
+        std::sync::OnceLock::new();
+    DATA.get_or_init(|| {
+        let bundled = std::env::current_exe().ok().and_then(|exe| {
+            Some(
+                exe.parent()?
+                    .join("assets/katex/fonts/NotoSansCJKsc-Regular.otf"),
+            )
+        });
+        let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../vendor/fonts/NotoSansCJKsc-Regular.otf");
+        let path = bundled.filter(|path| path.is_file()).unwrap_or(source);
+        std::fs::read(&path)
+            .map(Arc::new)
+            .map_err(|error| format!("Cannot load bundled CJK font {}: {error}", path.display()))
+    })
+    .clone()
+    .map_err(anyhow::Error::msg)
+}
+
+#[cfg(target_os = "windows")]
+fn windows_font_context() -> Result<blitz_dom::FontContext> {
+    use fontique::{Blob, FallbackKey, Script};
+    use std::sync::{Mutex, OnceLock};
+    static CONTEXT: OnceLock<Mutex<Option<blitz_dom::FontContext>>> = OnceLock::new();
+    let mut cached = CONTEXT
+        .get_or_init(|| Mutex::new(None))
+        .lock()
+        .map_err(|_| anyhow::anyhow!("Font cache lock poisoned"))?;
+    if cached.is_none() {
+        let mut context = blitz_dom::FontContext::new();
+        let fonts = context
+            .collection
+            .register_fonts(Blob::new(windows_font_bytes()?), None);
+        anyhow::ensure!(!fonts.is_empty(), "Invalid bundled CJK font");
+        for script in ["Hani", "Hira", "Kana", "Hang"] {
+            context.collection.append_fallbacks(
+                FallbackKey::new(Script::from_str_unchecked(script), None),
+                fonts.iter().map(|font| font.0),
+            );
+        }
+        *cached = Some(context);
+    }
+    Ok(cached.as_ref().unwrap().clone())
 }
 
 #[cfg(test)]

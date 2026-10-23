@@ -20,6 +20,22 @@ pub fn run() -> anyhow::Result<()> {
             .select()?;
     }
     let ui = AppWindow::new()?;
+    #[cfg(target_os = "windows")]
+    {
+        use slint::fontique_010::{fontique, shared_collection};
+        let mut collection = shared_collection();
+        let fonts = collection.register_fonts(
+            fontique::Blob::new(hui_render::native::windows_font_bytes()?),
+            None,
+        );
+        anyhow::ensure!(!fonts.is_empty(), "Invalid bundled CJK font");
+        for script in ["Hani", "Hira", "Kana", "Hang"] {
+            collection.append_fallbacks(
+                fontique::FallbackKey::new(fontique::Script::from_str_unchecked(script), None),
+                fonts.iter().map(|font| font.0),
+            );
+        }
+    }
     let app = controller::setup(&ui, if capture { &[] } else { &args })?;
     #[cfg(target_os = "macos")]
     if !capture {
