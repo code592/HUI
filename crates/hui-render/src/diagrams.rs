@@ -2,7 +2,7 @@
 use anyhow::{Context, Result};
 use merman::{
     Engine, MermaidConfig, OperationControl, RenderOutput, RenderRequest, Renderer, SvgRequest,
-    svg::SvgPipeline,
+    svg::{RootBackgroundPostprocessor, SvgPipeline},
 };
 use std::{
     sync::{Arc, OnceLock},
@@ -16,7 +16,12 @@ fn safe_svg(source: &str, dark: bool) -> Result<String> {
         "fontFamily": "Arial, Noto Sans CJK SC, PingFang SC, Noto Sans, sans-serif"
     }));
     let request = SvgRequest {
-        pipeline: Some(SvgPipeline::resvg_safe()),
+        // The parity renderer starts with a white canvas even for dark diagrams.
+        // Let the native document's paper color show through in every theme.
+        pipeline: Some(
+            SvgPipeline::resvg_safe()
+                .with_postprocessor(RootBackgroundPostprocessor::new("transparent")),
+        ),
         ..Default::default()
     };
     let result = Renderer::new()
@@ -201,6 +206,34 @@ mod tests {
             light.matches("<path").count() > 8,
             "labels lost their glyph outlines"
         );
+    }
+
+    #[test]
+    fn dark_diagram_canvas_preserves_document_background() {
+        use crate::{markdown::wrap_html, native::NativeDocument};
+        use base64::Engine as _;
+        let svg = render("sequenceDiagram\n A->>B: Hello", true).unwrap();
+        let html = wrap_html(
+            &format!(
+                "<img src=\"data:image/svg+xml;base64,{}\">",
+                base64::engine::general_purpose::STANDARD.encode(svg)
+            ),
+            1,
+            17.,
+            580.,
+            "",
+        );
+        let assets =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../vendor/katex");
+        let mut doc = NativeDocument::new(&html, None, assets, 640, 640, 1., true).unwrap();
+        let pixels = doc.paint(0);
+        let white_pixels = pixels
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .filter(|p| p[0] > 245 && p[1] > 245 && p[2] > 245 && p[3] > 0)
+            .count();
+        assert!(white_pixels < 1000, "dark diagram gained a white canvas");
     }
 
     #[test]
