@@ -73,6 +73,8 @@ Windows (Visual Studio Developer PowerShell):
 
 Собственный код HUI распространяется под [MIT](LICENSE). Зависимости, шрифты и ресурсы сохраняют свои лицензии; см. [THIRD_PARTY.md](THIRD_PARTY.md). В сообщении об ошибке укажите платформу, архитектуру, версию и минимальный документ без личных данных. Подробные незавершённые пункты записаны в [docs/STATUS.md](docs/STATUS.md) (на китайском).
 
+Добавлены тесты Mermaid для 11 распространённых типов диаграмм, CJK, многострочных подписей и тёмной темы. См. [использование и ограничения совместимости](docs/MERMAID.md). Пакеты Windows включают резервный шрифт CJK для приложения.
+
 [![Made with Slint](https://raw.githubusercontent.com/slint-ui/slint/master/logo/MadeWithSlint-logo-whitebg.png)](https://slint.dev)
 
 ```sh

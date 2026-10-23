@@ -2653,6 +2653,7 @@ dependencies = [
  "skia-safe",
  "syntect",
  "url",
+ "usvg 0.48.1",
 ]
 
 [[package]]

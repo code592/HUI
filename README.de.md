@@ -73,6 +73,8 @@ Beim Kopieren von PDF-Text können einzelne CJK- und kyrillische Zeichen durch o
 
 Der eigene HUI-Quellcode steht unter [MIT](LICENSE). Abhängigkeiten, Schriften und Ressourcen behalten ihre jeweiligen Lizenzen; siehe [THIRD_PARTY.md](THIRD_PARTY.md). Fehlermeldungen sollten Plattform, Architektur, Version und ein minimales Beispieldokument ohne private Inhalte enthalten. Details zu offenen Punkten stehen in [docs/STATUS.md](docs/STATUS.md) (Chinesisch).
 
+Mermaid wird für 11 gängige Diagrammtypen, CJK- und mehrzeilige Beschriftungen sowie dunkle Designs getestet. Siehe [Nutzung und Kompatibilitätsgrenzen](docs/MERMAID.md). Windows-Pakete enthalten eine private CJK-Ersatzschrift.
+
 [![Made with Slint](https://raw.githubusercontent.com/slint-ui/slint/master/logo/MadeWithSlint-logo-whitebg.png)](https://slint.dev)
 
 ```sh

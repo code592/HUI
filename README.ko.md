@@ -73,6 +73,8 @@ PDF 텍스트 복사 시 일부 한자 및 키릴 문자가 모양이 같은 다
 
 HUI 자체 소스는 [MIT](LICENSE)입니다. 의존성, 글꼴 및 번들 리소스는 각각의 라이선스를 따릅니다. [THIRD_PARTY.md](THIRD_PARTY.md)를 참조하세요. 문제를 보고할 때 플랫폼, 아키텍처, 버전과 개인 정보를 제거한 최소 재현 문서를 포함해 주세요. 자세한 미완료 항목은 [docs/STATUS.md](docs/STATUS.md)(중국어)에 기록되어 있습니다.
 
+Mermaid의 일반적인 11가지 다이어그램, CJK·여러 줄 레이블 및 어두운 테마 테스트를 추가했습니다. [사용법과 호환성 제한](docs/MERMAID.md)을 참고하세요. Windows 패키지에는 CJK 대체 글꼴이 포함됩니다.
+
 [![Made with Slint](https://raw.githubusercontent.com/slint-ui/slint/master/logo/MadeWithSlint-logo-whitebg.png)](https://slint.dev)
 
 ```sh

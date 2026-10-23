@@ -73,6 +73,8 @@ PDF 文本复制还存在少数字形相同但 Unicode 码位不同的替换（�
 
 HUI 自有源码采用 [MIT](LICENSE)。依赖、字体和附带资源各自遵循其许可证，见 [THIRD_PARTY.md](THIRD_PARTY.md)。欢迎提交问题和改进；请提供平台、架构、版本及最小复现文档，并去除私人内容。详细边界见 [docs/STATUS.md](docs/STATUS.md)。
 
+Mermaid 已增加常见 11 类图表、中文/多行标签及深色主题测试；使用方式与严格兼容边界见 [Mermaid 文档](docs/MERMAID.md)。Windows 包内置 CJK 缺字兜底字体。
+
 [![Made with Slint](https://raw.githubusercontent.com/slint-ui/slint/master/logo/MadeWithSlint-logo-whitebg.png)](https://slint.dev)
 
 ```sh

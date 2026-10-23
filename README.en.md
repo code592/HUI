@@ -73,6 +73,8 @@ PDF text copying can still substitute visually identical Unicode characters, obs
 
 HUI's own source is [MIT](LICENSE). Dependencies, fonts and bundled assets retain their respective licenses; see [THIRD_PARTY.md](THIRD_PARTY.md). Issues and improvements are welcome. Include platform, architecture, version and a minimal reproducer with private content removed. Detailed implementation gaps are recorded in [docs/STATUS.md](docs/STATUS.md) (Chinese).
 
+Mermaid now has tests for 11 common diagram families, CJK/multiline labels and dark themes; see [Mermaid usage and compatibility limits](docs/MERMAID.md). Windows packages include a private CJK fallback font.
+
 [![Made with Slint](https://raw.githubusercontent.com/slint-ui/slint/master/logo/MadeWithSlint-logo-whitebg.png)](https://slint.dev)
 
 ```sh

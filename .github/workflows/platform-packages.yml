@@ -48,6 +48,13 @@ jobs:
             $process = Start-Process -FilePath $app -ArgumentList '--render','packaging/smoke/multilingual.md',$output -Wait -PassThru
             if ($process.ExitCode -ne 0 -or !(Test-Path $output) -or (Get-Item $output).Length -eq 0) { throw "Native render failed: $format" }
           }
+          foreach ($format in @('png', 'html', 'pdf')) {
+            $output = ".build/ci/windows-x64-mermaid.$format"
+            $process = Start-Process -FilePath $app -ArgumentList '--render','packaging/smoke/mermaid.md',$output -Wait -PassThru
+            if ($process.ExitCode -ne 0 -or !(Test-Path $output)) { throw "Mermaid render failed: $format" }
+          }
+          $process = Start-Process -FilePath $app -ArgumentList '--render','packaging/smoke/mermaid.md','.build/ci/windows-x64-mermaid-dark.png','dark' -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw 'Dark Mermaid render failed' }
           $env:HUI_LANGUAGE = 'zh-CN'
           $uiOutput = '.build/ci/windows-x64-ui.png'
           $process = Start-Process -FilePath $app -ArgumentList '--screenshot',$uiOutput,'split' -Wait -PassThru
@@ -60,7 +67,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: HUI-windows-x64-render-smoke
-          path: .build/ci/windows-x64.*
+          path: .build/ci/windows-x64*
   linux:
     if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && (inputs.platform == 'all' || inputs.platform == 'linux'))
     strategy:

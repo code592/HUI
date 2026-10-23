@@ -73,6 +73,8 @@ Al copiar texto PDF, algunos caracteres CJK y cirílicos pueden sustituirse por 
 
 El código propio de HUI usa [MIT](LICENSE). Las dependencias, fuentes y recursos conservan sus licencias; consulta [THIRD_PARTY.md](THIRD_PARTY.md). Al informar de un problema, incluye plataforma, arquitectura, versión y un documento mínimo sin contenido privado. Los detalles pendientes están en [docs/STATUS.md](docs/STATUS.md) (chino).
 
+Mermaid cuenta con pruebas para 11 tipos comunes de diagramas, etiquetas CJK y multilínea y el tema oscuro. Consulta los [límites de compatibilidad](docs/MERMAID.md). Los paquetes de Windows incluyen una fuente CJK de respaldo privada.
+
 [![Made with Slint](https://raw.githubusercontent.com/slint-ui/slint/master/logo/MadeWithSlint-logo-whitebg.png)](https://slint.dev)
 
 ```sh

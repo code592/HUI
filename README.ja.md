@@ -73,6 +73,8 @@ PDF の文字コピーでは、一部の漢字やキリル文字が同じ字形�
 
 HUI 独自のソースは [MIT](LICENSE) です。依存関係、フォント、同梱リソースには各ライセンスが適用されます。[THIRD_PARTY.md](THIRD_PARTY.md) を参照してください。問題報告には OS、アーキテクチャ、バージョン、個人情報を除いた最小の再現文書を添えてください。詳細な未完了項目は [docs/STATUS.md](docs/STATUS.md)（中国語）に記録しています。
 
+Mermaid の主要 11 種類、CJK・複数行ラベル、ダークテーマのテストを追加しました。[使い方と互換性の制限](docs/MERMAID.md)をご覧ください。Windows パッケージには CJK フォールバックフォントを同梱しています。
+
 [![Made with Slint](https://raw.githubusercontent.com/slint-ui/slint/master/logo/MadeWithSlint-logo-whitebg.png)](https://slint.dev)
 
 ```sh

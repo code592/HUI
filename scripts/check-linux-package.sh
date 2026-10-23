@@ -10,3 +10,8 @@ ldd "$app" | tee ".build/cross/smoke-$arch/dependencies.txt"
 if grep -q 'not found' ".build/cross/smoke-$arch/dependencies.txt"; then exit 1; fi
 "$app" --render packaging/smoke/multilingual.md ".build/cross/smoke-$arch/document.png"
 "$app" --render packaging/smoke/multilingual.md ".build/cross/smoke-$arch/document.pdf"
+
+for format in png html pdf; do
+    "$app" --render packaging/smoke/mermaid.md ".build/cross/smoke-$arch/mermaid.$format"
+done
+"$app" --render packaging/smoke/mermaid.md ".build/cross/smoke-$arch/mermaid-dark.png" dark

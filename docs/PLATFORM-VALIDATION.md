@@ -6,10 +6,12 @@
 
 - 核心测试：12 个通过，覆盖 Unicode/换行、事务、搜索和存储冲突。
 - 九语言字典检查：9 × 138 个键、占位符与欢迎文档通过。
-- Android ARM64：原生 Slint 入口及系统存储桥接；Android API 36 / 16 KiB 页模拟器上，通过原生初始化、Unicode/CRLF 保存、重复保存、外部冲突、只读和权限撤销测试。Content URI 打开链路也已通过（包括进入 Rust 文档模型）；只读与撤权测试使用测试 Provider 注入错误，不是所有真实提供方的权限验收。
+- Android ARM64：原生 Slint 入口及系统存储桥接；Android API 36 / 16 KiB 页模拟器上，通过原生初始化、Unicode/CRLF 保存、重复保存、外部冲突、只读和权限撤销测试。Content URI 打开与规范路径写回链路也已通过（包括进入 Rust 文档模型，覆盖 `/data/data` 和 `/data/user` 路径别名）；只读与撤权测试使用测试 Provider 注入错误，不是所有真实提供方的权限验收。
 - Linux ARM64：已通过 Ubuntu 24.04 容器中多语言 PNG/PDF 导出、Xvfb 窗口截图及默认渲染器启动；共用手机宽度布局已用原生软件渲染截图检查。
 - Linux x64：已完成本次优化构建及多语言 PNG/PDF、Xvfb 窗口、默认渲染器启动检查。
-- Windows：GitHub Actions Windows Server 2022 原生 MSVC 环境已完成 x64/ARM64 构建；最后界面调整后的包与 x64 原生 PNG/PDF 导出复核仍在进行。旧 ZIP 不作为本次交付。
+- Windows：GitHub Actions Windows Server 2022 原生 MSVC 环境已完成 x64/ARM64 构建；已完成 x64 原生 PNG/PDF 导出及窗口截图检查；补充应用私有 Noto CJK 字体后，简体中文缺字已修复并经渲染图复核。Mermaid 增强后的最终包正在重新构建。旧 ZIP 不作为本次交付。
+
+- Mermaid：11 类常见图表（含 graph 别名）、中文与多行标签、深色缓存、错误语法及原生像素绘制测试已通过；共 16 个渲染模块测试通过。各端更新包的最终导出检查仍在进行，详见 [MERMAID.md](MERMAID.md)。
 
 ## 明确未验收
 

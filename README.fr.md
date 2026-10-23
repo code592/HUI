@@ -73,6 +73,8 @@ La copie du texte PDF peut remplacer certains caractères CJK et cyrilliques par
 
 Le code propre à HUI est sous [MIT](LICENSE). Les dépendances, polices et ressources conservent leurs licences respectives ; voir [THIRD_PARTY.md](THIRD_PARTY.md). Pour signaler un problème, indiquez la plateforme, l’architecture, la version et un document minimal sans données privées. Les limites détaillées figurent dans [docs/STATUS.md](docs/STATUS.md) (chinois).
 
+Mermaid est testé sur 11 familles courantes, les libellés CJK et multilignes et le thème sombre. Voir les [limites de compatibilité](docs/MERMAID.md). Les archives Windows incluent une police CJK de secours privée.
+
 [![Made with Slint](https://raw.githubusercontent.com/slint-ui/slint/master/logo/MadeWithSlint-logo-whitebg.png)](https://slint.dev)
 
 ```sh

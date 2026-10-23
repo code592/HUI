@@ -119,33 +119,32 @@ impl MarkdownEngine {
         self.remember(key, result.clone());
         Ok(result)
     }
-    fn diagram(&mut self, source: &str) -> Result<String> {
-        use merman::{OperationControl, RenderOutput, RenderRequest, Renderer, SvgRequest};
-        let key = format!("mermaid:{source}");
+    fn diagram(&mut self, source: &str, dark: bool) -> Result<String> {
+        let key = format!("mermaid:{dark}:{source}");
         if let Some(result) = self.cache.get(&key) {
             return Ok(result.clone());
         }
-        let output = Renderer::new().render(RenderRequest::svg(
-            source,
-            OperationControl::new(),
-            SvgRequest::default(),
-        ))?;
-        let RenderOutput::Svg(Some(svg)) = output else {
-            anyhow::bail!((self.translate)("没有可渲染的 Mermaid 图表"));
-        };
-        // Image decoding is handled by the native renderer, never by a browser.
+        let svg = crate::diagrams::render(source, dark)?;
         use base64::Engine;
         let result = format!(
-            "<figure><img alt=\"Mermaid\" src=\"data:image/svg+xml;base64,{}\"></figure>",
-            base64::engine::general_purpose::STANDARD.encode(svg.svg())
+            "<figure class=\"hui-diagram\"><img alt=\"Mermaid\" src=\"data:image/svg+xml;base64,{}\"></figure>",
+            base64::engine::general_purpose::STANDARD.encode(svg)
         );
         self.remember(key, result.clone());
         Ok(result)
     }
     fn remember(&mut self, key: String, value: String) {
-        if self.cache.len() >= 64
-            || self.cache.values().map(String::len).sum::<usize>() > 8 * 1024 * 1024
-        {
+        const BUDGET: usize = 8 * 1024 * 1024;
+        let added = key.len().saturating_add(value.len());
+        if added > BUDGET {
+            return;
+        }
+        let retained = self
+            .cache
+            .iter()
+            .map(|(key, value)| key.len() + value.len())
+            .sum::<usize>();
+        if self.cache.len() >= 64 || retained + added > BUDGET {
             self.cache.clear();
         }
         self.cache.insert(key, value);
@@ -208,8 +207,12 @@ impl MarkdownEngine {
                 Event::Text(ref text) if code.is_some() => code.as_mut().unwrap().1.push_str(text),
                 Event::End(TagEnd::CodeBlock) => {
                     let (lang, text) = code.take().unwrap();
-                    let rendered = if lang.trim() == "mermaid" {
-                        self.diagram(&text)
+                    let rendered = if lang
+                        .split_whitespace()
+                        .next()
+                        .is_some_and(|lang| lang.eq_ignore_ascii_case("mermaid"))
+                    {
+                        self.diagram(&text, dark)
                     } else {
                         let token = lang.split_whitespace().next().unwrap_or("");
                         let syntax = self
@@ -485,6 +488,27 @@ pub fn highlighted_source(source: &str, dark: bool) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn mermaid_fences_keep_theme_specific_cached_output() {
+        let source = "```Mermaid title=example\nflowchart LR\n A[开始] --> B[保存]\n```\n";
+        let cancel = Arc::new(AtomicBool::new(false));
+        let mut engine = MarkdownEngine::new().unwrap();
+        let light = engine.render(source, false, &cancel).unwrap();
+        let dark = engine.render(source, true, &cancel).unwrap();
+        assert!(light.diagnostics.is_empty() && dark.diagnostics.is_empty());
+        assert!(light.html.contains("hui-diagram"));
+        assert_ne!(light.html, dark.html);
+        assert_eq!(
+            engine.render(source, false, &cancel).unwrap().html,
+            light.html
+        );
+        let invalid = engine
+            .render("```mermaid\nflowchart LR\n A[broken\n```", false, &cancel)
+            .unwrap();
+        assert!(!invalid.diagnostics.is_empty());
+        assert!(invalid.html.contains("render-error") && invalid.html.contains("A[broken"));
+    }
+
     #[test]
     fn source_colors_preserve_literal_markdown_and_line_endings() {
         let source = "# 标题\r\n\r\n**粗体** & <tag>\t😀\n```rust\nlet x = 1;\n```\n";
