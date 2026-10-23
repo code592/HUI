@@ -10,7 +10,7 @@
 
 ## 상태
 
-**0.2.0 개발 미리 보기**. 데스크톱 빌드를 제공하지만 아직 미완성 기능이 있습니다. Android/iOS 앱은 아직 제공하지 않습니다.
+**0.2.0 개발 미리 보기**. 데스크톱 빌드와 함께 Android ARM64 네이티브 앱 및 APK 빌드를 추가했습니다. 모바일에는 아직 제한 사항이 있으며 iOS 앱은 제공하지 않습니다. [Android 빌드 및 제한 사항](docs/ANDROID.md), [플랫폼 검증 기록](docs/PLATFORM-VALIDATION.md)을 참고하세요.
 
 ## 기능
 
@@ -74,3 +74,8 @@ PDF 텍스트 복사 시 일부 한자 및 키릴 문자가 모양이 같은 다
 HUI 자체 소스는 [MIT](LICENSE)입니다. 의존성, 글꼴 및 번들 리소스는 각각의 라이선스를 따릅니다. [THIRD_PARTY.md](THIRD_PARTY.md)를 참조하세요. 문제를 보고할 때 플랫폼, 아키텍처, 버전과 개인 정보를 제거한 최소 재현 문서를 포함해 주세요. 자세한 미완료 항목은 [docs/STATUS.md](docs/STATUS.md)(중국어)에 기록되어 있습니다.
 
 [![Made with Slint](https://raw.githubusercontent.com/slint-ui/slint/master/logo/MadeWithSlint-logo-whitebg.png)](https://slint.dev)
+
+```sh
+# Android ARM64 — ANDROID_HOME / JAVA_HOME required
+bash scripts/package-android.sh preview
+```

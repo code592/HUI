@@ -10,7 +10,7 @@
 
 ## Состояние
 
-**Предварительная версия 0.2.0 для разработки**. Доступны настольные сборки, но часть возможностей ещё не завершена. Приложения для Android и iOS пока не готовы к поставке.
+**Предварительная версия 0.2.0 для разработки**. Доступны настольные сборки. Добавлены нативное приложение Android ARM64 и сборка APK; мобильная версия пока имеет ограничения. iOS ещё не готова к поставке. См. [сборку Android и ограничения](docs/ANDROID.md), [проверку платформ](docs/PLATFORM-VALIDATION.md).
 
 ## Возможности
 
@@ -74,3 +74,8 @@ Windows (Visual Studio Developer PowerShell):
 Собственный код HUI распространяется под [MIT](LICENSE). Зависимости, шрифты и ресурсы сохраняют свои лицензии; см. [THIRD_PARTY.md](THIRD_PARTY.md). В сообщении об ошибке укажите платформу, архитектуру, версию и минимальный документ без личных данных. Подробные незавершённые пункты записаны в [docs/STATUS.md](docs/STATUS.md) (на китайском).
 
 [![Made with Slint](https://raw.githubusercontent.com/slint-ui/slint/master/logo/MadeWithSlint-logo-whitebg.png)](https://slint.dev)
+
+```sh
+# Android ARM64 — ANDROID_HOME / JAVA_HOME required
+bash scripts/package-android.sh preview
+```

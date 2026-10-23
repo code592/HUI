@@ -1,0 +1,90 @@
+name: Native platform packages
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Platform to build
+        type: choice
+        default: all
+        options: [all, windows, linux, android]
+  push:
+    branches: ['codex/native-platforms']
+    tags: ['build-*']
+permissions:
+  contents: read
+jobs:
+  windows:
+    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'windows'
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, vc: amd64, target: x86_64-pc-windows-msvc }
+          - { arch: arm64, vc: amd64_arm64, target: aarch64-pc-windows-msvc }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98.0
+        with:
+          targets: ${{ matrix.target }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.vc }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: windows-${{ matrix.arch }}
+      - shell: pwsh
+        run: ./scripts/package-windows.ps1 -Arch '${{ matrix.arch }}'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HUI-windows-${{ matrix.arch }}
+          path: dist/HUI-windows-${{ matrix.arch }}.zip*
+  linux:
+    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && (inputs.platform == 'all' || inputs.platform == 'linux'))
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, runner: ubuntu-24.04 }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.runner }}
+    container: ubuntu:22.04
+    steps:
+      - run: apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y curl git build-essential clang cmake pkg-config python3 libfontconfig1-dev libxkbcommon-dev libxcb-shape0-dev libxcb-xfixes0-dev libudev-dev libssl-dev libgl1-mesa-dev xvfb fonts-noto-cjk
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: linux-${{ matrix.arch }}
+      - run: bash scripts/package-linux.sh
+      - run: bash scripts/check-linux-package.sh '${{ matrix.arch }}'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HUI-linux-${{ matrix.arch }}
+          path: dist/HUI-linux-${{ matrix.arch }}.tar.gz*
+  android:
+    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && (inputs.platform == 'all' || inputs.platform == 'android'))
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;28.2.13676358'
+      - run: sudo apt-get update && sudo apt-get install -y clang libclang-dev cmake python3
+      - uses: dtolnay/rust-toolchain@1.98.0
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: android-arm64
+      - run: bash scripts/package-android.sh preview
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HUI-android-arm64-preview
+          path: dist/HUI-android-arm64-preview.apk*

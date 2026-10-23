@@ -79,12 +79,25 @@ pub fn message(source: &str, args: &[(&str, String)]) -> String {
     result.push_str(rest);
     result
 }
+fn system_locale() -> Option<String> {
+    #[cfg(target_os = "android")]
+    {
+        crate::android::call("systemLanguage", &[])
+            .ok()
+            .filter(|s| !s.is_empty())
+            .or_else(sys_locale::get_locale)
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        sys_locale::get_locale()
+    }
+}
 pub fn apply(ui: &AppWindow, preference: &str) {
     let language = if preference.is_empty() || preference == "system" {
         // HUI_LANGUAGE is also useful for deterministic screenshots and packaging QA.
         std::env::var("HUI_LANGUAGE")
             .ok()
-            .or_else(sys_locale::get_locale)
+            .or_else(system_locale)
             .unwrap_or_else(|| "en".into())
     } else {
         preference.to_owned()

@@ -10,7 +10,7 @@
 
 ## 状态
 
-**0.2.0 开发预览**。桌面可用，仍有明确的未完成项；Android/iOS 尚无可交付应用。
+**0.2.0 开发预览**。桌面可用，Android ARM64 已增加原生应用与 APK 构建；仍有明确的移动适配边界，iOS 尚无可交付应用。Android 构建和限制见 [Android 文档](docs/ANDROID.md)，本次结果见 [平台验证记录](docs/PLATFORM-VALIDATION.md)。
 
 ## 功能
 
@@ -74,3 +74,8 @@ PDF 文本复制还存在少数字形相同但 Unicode 码位不同的替换（�
 HUI 自有源码采用 [MIT](LICENSE)。依赖、字体和附带资源各自遵循其许可证，见 [THIRD_PARTY.md](THIRD_PARTY.md)。欢迎提交问题和改进；请提供平台、架构、版本及最小复现文档，并去除私人内容。详细边界见 [docs/STATUS.md](docs/STATUS.md)。
 
 [![Made with Slint](https://raw.githubusercontent.com/slint-ui/slint/master/logo/MadeWithSlint-logo-whitebg.png)](https://slint.dev)
+
+```sh
+# Android ARM64 — ANDROID_HOME / JAVA_HOME required
+bash scripts/package-android.sh preview
+```

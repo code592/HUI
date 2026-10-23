@@ -6,6 +6,7 @@ export global I18n {
 }
 
 export global Design {
+    in-out property <bool> mobile: false;
     in-out property <int> theme: 0;
     out property <color> paper: theme == 1 ? #1c1e23 : theme == 2 ? #f5efdf : #fdfcf9;
     out property <color> panel: theme == 1 ? #22252b : theme == 2 ? #ede6d7 : #f4f5f7;
@@ -29,8 +30,8 @@ component Action inherits Rectangle {
     in property <bool> selected;
     callback triggered();
     horizontal-stretch: 0;
-    preferred-width: label == "" ? 36px : 56px;
-    height: 34px;
+    preferred-width: label == "" ? (Design.mobile ? 44px : 36px) : (Design.mobile ? 48px : 56px);
+    height: Design.mobile ? 44px : 34px;
     border-radius: 8px;
     background: selected ? Design.active : touch.has-hover ? Design.hover : transparent;
     accessible-role: button;
@@ -41,7 +42,7 @@ component Action inherits Rectangle {
         if root.has-icon: Rectangle { width: 17px;
             Image { source: root.icon; width: 17px; height: 17px; y: (parent.height - self.height) / 2; colorize: root.selected ? Design.accent : Design.muted; }
         }
-        if root.label != "": Text { text: root.label; color: root.selected ? Design.accent : Design.ink; font-size: 12px; vertical-alignment: center; }
+        if root.label != "": Text { overflow: elide; text: root.label; color: root.selected ? Design.accent : Design.ink; font-size: 12px; vertical-alignment: center; }
     }
     touch := TouchArea { mouse-cursor: pointer; clicked => { root.triggered(); } }
     Tooltip { text: @markdown("\{root.hint}"); }
@@ -91,7 +92,7 @@ component ScrollView inherits Rectangle {
     in-out property <length> viewport-y <=> flick.viewport-y;
     min-height: 50px; min-width: 50px;
     horizontal-stretch: 1; vertical-stretch: 1;
-    flick := Flickable { interactive: false; @children }
+    flick := Flickable { interactive: Design.mobile; @children }
     ThinScrollBar {
         x: parent.width - self.width; height: parent.height;
         maximum: max(0, (root.viewport-height - root.height) / 1px);
@@ -106,7 +107,7 @@ component InlineScrollView inherits Rectangle {
     in-out property <length> viewport-width <=> flick.viewport-width;
     in-out property <length> viewport-height <=> flick.viewport-height;
     in-out property <length> viewport-y <=> flick.viewport-y;
-    flick := Flickable { interactive: false; @children }
+    flick := Flickable { interactive: Design.mobile; @children }
     ThinScrollBar {
         x: parent.width - self.width; height: parent.height;
         maximum: max(0, (root.viewport-height - root.height) / 1px);
@@ -117,10 +118,11 @@ component InlineScrollView inherits Rectangle {
 export component AppWindow inherits Window {
     icon: @image-url("../../../assets/brand/hui-256.png");
     title: document-name + " — HUI";
+    in-out property <bool> mobile <=> Design.mobile;
     in-out property <float> initial-width: 1180;
     in-out property <float> initial-height: 800;
     preferred-width: initial-width * 1px; preferred-height: initial-height * 1px;
-    min-width: 430px; min-height: 520px;
+    min-width: root.mobile ? 300px : 430px; min-height: root.mobile ? 320px : 520px;
     background: Design.paper;
     default-font-size: 13px;
     in-out property <int> theme <=> Design.theme;
@@ -162,10 +164,13 @@ export component AppWindow inherits Window {
     in-out property <float> preview-position;
     in property <float> preview-max;
     in property <string> search-result;
+    private property <string> query-text;
+    private property <string> replacement-text;
+    private property <bool> regex-search;
     out property <float> preview-width: mode == 0 ? 0 : mode == 1 && !compact ? (body-width / 1px - 8) * (1 - split-ratio) : body-width / 1px;
     out property <float> preview-height: reader.height / 1px + (show-source ? 42 : 0) - (mode == 0 || mode == 1 ? 42 : 0);
     private property <length> body-width: root.width - (root.sidebar-visible && !root.compact ? root.sidebar-width * 1px + 1px : 0px) - (root.outline-visible && !root.compact ? 196px : 0px);
-    private property <bool> compact: root.width < 760px;
+    private property <bool> compact: root.mobile || root.width < 760px;
     private property <bool> show-source: displayed-mode == 0 || displayed-mode == 1;
     private property <bool> show-reader: displayed-mode == 3 || displayed-mode == 2 || (displayed-mode == 1 && !compact);
     out property <int> source-cursor: mode == 2 ? inline-input.cursor-position-byte-offset : input.cursor-position-byte-offset;
@@ -221,6 +226,7 @@ export component AppWindow inherits Window {
     public function reset-inline-scroll() { inline-scroll.viewport-y = 0px; }
 
     MenuBar {
+        visible: !root.mobile;
         Menu { title: I18n.translate("文件", I18n.locale);
             MenuItem { title: I18n.translate("新建", I18n.locale); shortcut: @keys(Control + N); activated => { root.action("new"); } }
             MenuItem { title: I18n.translate("打开…", I18n.locale); shortcut: @keys(Control + O); activated => { root.action("open"); } }
@@ -273,11 +279,12 @@ export component AppWindow inherits Window {
     VerticalLayout {
         spacing: 0px;
         Rectangle {
-            height: 44px; background: Design.paper;
+            height: root.mobile ? 54px : 44px; background: Design.paper;
             HorizontalLayout {
                 padding-left: 10px; padding-right: 10px; padding-top: 5px; padding-bottom: 5px; spacing: 6px;
-                Action { width: 32px; height: 32px; has-icon: true; icon: @image-url("icons/sidebar.svg"); hint: I18n.translate("显示文件栏", I18n.locale); triggered => { root.sidebar-visible = !root.sidebar-visible; } }
-                tabs-area := Rectangle { horizontal-stretch: 1;
+                Action { width: root.mobile ? 44px : 32px; height: root.mobile ? 44px : 32px; has-icon: true; icon: @image-url("icons/sidebar.svg"); hint: I18n.translate("显示文件栏", I18n.locale); triggered => { root.sidebar-visible = !root.sidebar-visible; } }
+                if root.mobile: Text { text: root.document-name; overflow: elide; color: Design.ink; font-size: 14px; vertical-alignment: center; horizontal-stretch: 1; }
+                if !root.mobile: Rectangle { horizontal-stretch: 1;
                     HorizontalLayout { spacing: 3px;
                         for tab[i] in root.tabs: Rectangle {
                             horizontal-stretch: 1; min-width: 58px; max-width: 176px;
@@ -306,19 +313,23 @@ export component AppWindow inherits Window {
                         Action { height: 28px; label: I18n.translate("阅读", I18n.locale); selected: root.mode == 3; triggered => { root.mode = 3; } }
                     }
                 }
-                Action { width: 32px; height: 32px; label: "···"; hint: I18n.translate("命令、查找与导出", I18n.locale); triggered => { root.commands-visible = !root.commands-visible; } }
+                Action { width: root.mobile ? 44px : 32px; height: root.mobile ? 44px : 32px; label: "···"; hint: I18n.translate("命令、查找与导出", I18n.locale); triggered => { root.commands-visible = !root.commands-visible; } }
             }
         }
         Divider {}
         if root.search-visible: Rectangle {
-            height: root.compact ? 104px : 60px; background: Design.panel;
+            height: root.mobile ? 132px : root.compact ? 104px : 60px; background: Design.panel;
             VerticalLayout { padding: 10px; spacing: 6px;
                 HorizontalLayout { spacing: 8px;
-                    query := LineEdit { placeholder-text: I18n.translate("查找文档…", I18n.locale); accepted => { root.search(self.text, replacement.text, regex.checked, false); } }
-                    replacement := LineEdit { placeholder-text: I18n.translate("替换为…", I18n.locale); }
-                    regex := CheckBox { text: ".*"; }
-                    Action { label: I18n.translate("查找", I18n.locale); triggered => { root.search(query.text, replacement.text, regex.checked, false); } }
-                    Action { label: I18n.translate("全部替换", I18n.locale); triggered => { root.search(query.text, replacement.text, regex.checked, true); } }
+                    LineEdit { text <=> root.query-text; placeholder-text: I18n.translate("查找文档…", I18n.locale); accepted => { root.search(root.query-text, root.replacement-text, root.regex-search, false); } }
+                    if !root.compact: LineEdit { text <=> root.replacement-text; placeholder-text: I18n.translate("替换为…", I18n.locale); }
+                    CheckBox { text: ".*"; checked <=> root.regex-search; }
+                    Action { label: I18n.translate("查找", I18n.locale); triggered => { root.search(root.query-text, root.replacement-text, root.regex-search, false); } }
+                    if !root.compact: Action { label: I18n.translate("全部替换", I18n.locale); triggered => { root.search(root.query-text, root.replacement-text, root.regex-search, true); } }
+                }
+                if root.compact: HorizontalLayout { spacing: 8px;
+                    LineEdit { text <=> root.replacement-text; placeholder-text: I18n.translate("替换为…", I18n.locale); }
+                    Action { label: I18n.translate("全部替换", I18n.locale); triggered => { root.search(root.query-text, root.replacement-text, root.regex-search, true); } }
                 }
                 Text { text: root.search-result; color: Design.muted; font-size: 10px; }
             }
@@ -362,7 +373,7 @@ export component AppWindow inherits Window {
                 horizontal-stretch: 1;
                 VerticalLayout { spacing: 0px;
                     if root.show-source: Rectangle {
-                        height: 42px; background: Design.paper;
+                        height: root.mobile ? 48px : 42px; background: Design.paper;
                         HorizontalLayout { padding-left: 20px; padding-right: 20px; spacing: 4px;
                             Action { label: "H₁"; hint: I18n.translate("标题", I18n.locale); triggered => { root.format("heading"); } }
                             Action { label: "B"; hint: I18n.translate("粗体", I18n.locale); triggered => { root.format("bold"); } }
@@ -489,19 +500,20 @@ export component AppWindow inherits Window {
                                     MenuItem { title: I18n.translate("排版设置…", I18n.locale); activated => { root.settings-visible = true; } }
                                 }
                             read-touch := TouchArea {
-                                mouse-cursor: text;
+                                private property <length> last-touch-y;
+                                mouse-cursor: root.mobile ? default : text;
                                 scroll-event(event) => { root.scroll-preview(-event.delta-y / 1px); return accept; }
                                 pointer-event(event) => {
                                     if event.button == PointerEventButton.right && event.kind == PointerEventKind.up {
                                         reading-menu.show({x: self.mouse-x, y: self.mouse-y});
                                     }
                                     if event.button == PointerEventButton.left {
-                                        if event.kind == PointerEventKind.down { reader-focus.focus(); if root.mode != 2 { root.select-reading(0, self.mouse-x / 1px, self.mouse-y / 1px); } }
-                                        if event.kind == PointerEventKind.up && root.mode != 2 { root.select-reading(2, self.mouse-x / 1px, self.mouse-y / 1px); }
+                                        if event.kind == PointerEventKind.down { self.last-touch-y = self.mouse-y; reader-focus.focus(); if !root.mobile && root.mode != 2 { root.select-reading(0, self.mouse-x / 1px, self.mouse-y / 1px); } }
+                                        if event.kind == PointerEventKind.up && !root.mobile && root.mode != 2 { root.select-reading(2, self.mouse-x / 1px, self.mouse-y / 1px); }
                                     }
 
                                 }
-                                moved => { if self.pressed && root.mode != 2 { root.select-reading(1, self.mouse-x / 1px, self.mouse-y / 1px); } }
+                                moved => { if self.pressed && root.mode != 2 { if root.mobile { root.scroll-preview((self.last-touch-y - self.mouse-y) / 1px); self.last-touch-y = self.mouse-y; } else { root.select-reading(1, self.mouse-x / 1px, self.mouse-y / 1px); } } }
                                 clicked => { if root.mode == 2 { root.open-inline(self.mouse-x / 1px, self.mouse-y / 1px); } }
                             }
                             }
@@ -616,9 +628,9 @@ export component AppWindow inherits Window {
         Divider {}
         Rectangle { height: root.compact ? 48px : 28px; background: Design.paper;
             HorizontalLayout { padding-left: 20px; padding-right: 20px; spacing: 12px;
-                if root.compact: Action { label: root.show-source ? I18n.translate("阅读", I18n.locale) : I18n.translate("编辑", I18n.locale); triggered => { root.mode = root.show-source ? 3 : 0; } }
-                if root.compact: Action { label: I18n.translate("打开", I18n.locale); triggered => { root.action("open"); } }
-                if root.compact: Action { label: I18n.translate("排版", I18n.locale); triggered => { root.settings-visible = !root.settings-visible; } }
+                if root.compact: Action { height: 44px; label: root.show-source ? I18n.translate("阅读", I18n.locale) : I18n.translate("编辑", I18n.locale); triggered => { root.mode = root.show-source ? 3 : 0; } }
+                if root.compact: Action { height: 44px; label: I18n.translate("打开", I18n.locale); triggered => { root.action("open"); } }
+                if root.compact: Action { height: 44px; label: I18n.translate("排版", I18n.locale); triggered => { root.settings-visible = !root.settings-visible; } }
                 Text { text: root.status; color: root.dirty ? Design.accent : Design.muted; font-size: 10px; vertical-alignment: center; overflow: elide; }
                 Rectangle { horizontal-stretch: 1; }
                 if !root.compact: Text { text: root.statistics; color: Design.muted; font-size: 10px; vertical-alignment: center; }
@@ -626,6 +638,27 @@ export component AppWindow inherits Window {
         }
     }
 
+    }
+    if root.mobile && root.sidebar-visible: Rectangle {
+        background: #00000030;
+        TouchArea { clicked => { root.sidebar-visible = false; } }
+        Rectangle { width: min(320px, root.width - 44px); background: Design.paper;
+            VerticalLayout { padding: 16px; spacing: 12px;
+                HorizontalLayout {
+                    Action { label: I18n.translate("新建", I18n.locale); triggered => { root.sidebar-visible = false; root.action("new"); root.mode = 0; } }
+                    Action { label: I18n.translate("打开", I18n.locale); triggered => { root.sidebar-visible = false; root.action("open"); } }
+                    Action { label: "×"; triggered => { root.sidebar-visible = false; } }
+                }
+                ScrollView { VerticalLayout { spacing: 4px;
+                    for tab[i] in root.tabs: Action { label: tab.label; selected: i == root.active-tab; triggered => { root.tab-clicked(i); root.sidebar-visible = false; } }
+                    Divider {}
+                    for file[i] in root.files: Action { label: file.label; triggered => { root.file-clicked(i); root.sidebar-visible = false; } }
+                    Divider {}
+                    for heading[i] in root.headings: Action { label: heading.label; triggered => { root.heading-clicked(i); root.sidebar-visible = false; } }
+                    Rectangle { vertical-stretch: 1; }
+                } }
+            }
+        }
     }
     if root.notice != "": Rectangle {
         x: max(12px, (root.width - 560px) / 2); y: root.height - 92px;
@@ -674,15 +707,17 @@ export component AppWindow inherits Window {
                     Slider { value <=> root.reading-width; minimum: 520; maximum: 1040; changed => { root.appearance(); } }
                 }
                 }
-                if root.commands-visible: VerticalLayout { spacing: 6px;
+                if root.commands-visible: ScrollView { VerticalLayout { spacing: 6px;
                     Action { has-icon: true; label: I18n.translate("新建文档", I18n.locale); icon: @image-url("icons/plus.svg"); triggered => { root.commands-visible = false; root.action("new"); } }
-                    Action { has-icon: true; label: I18n.translate("打开文件夹", I18n.locale); icon: @image-url("icons/folder.svg"); triggered => { root.commands-visible = false; root.action("folder"); } }
+                    if !root.mobile: Action { has-icon: true; label: I18n.translate("打开文件夹", I18n.locale); icon: @image-url("icons/folder.svg"); triggered => { root.commands-visible = false; root.action("folder"); } }
+                    if root.mobile: Action { label: I18n.translate("查找与替换", I18n.locale); triggered => { root.commands-visible = false; root.search-visible = !root.search-visible; } }
                     Action { has-icon: true; label: I18n.translate("另存为…", I18n.locale); icon: @image-url("icons/save.svg"); triggered => { root.commands-visible = false; root.action("save-as"); } }
                     Action { has-icon: true; label: I18n.translate("导出 HTML", I18n.locale); icon: @image-url("icons/export.svg"); triggered => { root.commands-visible = false; root.action("export-html"); } }
                     Action { has-icon: true; label: I18n.translate("导出 PDF", I18n.locale); icon: @image-url("icons/export.svg"); triggered => { root.commands-visible = false; root.action("export-pdf"); } }
                     Action { label: I18n.translate("撤销  ·  Ctrl/Cmd Z", I18n.locale); triggered => { root.action("undo"); } }
                     Action { label: I18n.translate("重做  ·  Ctrl/Cmd Y", I18n.locale); triggered => { root.action("redo"); } }
                     Action { has-icon: true; label: I18n.translate("排版设置", I18n.locale); icon: @image-url("icons/sun.svg"); triggered => { root.commands-visible = false; root.settings-visible = true; } }
+                }
                 }
                 Rectangle { vertical-stretch: 1; }
             }

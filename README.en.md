@@ -10,7 +10,7 @@ A modern, clean, local-first Markdown editor and reader built with **Rust + Slin
 
 ## Status
 
-**0.2.0 development preview**. Desktop builds are available with documented gaps. Android and iOS apps are not yet deliverable.
+**0.2.0 development preview**. Desktop builds are available. A native Android ARM64 host and APK build are now included, with mobile limitations documented; iOS is not yet deliverable. See [Android build and limitations](docs/ANDROID.md) and [platform validation](docs/PLATFORM-VALIDATION.md).
 
 ## Features
 
@@ -74,3 +74,8 @@ PDF text copying can still substitute visually identical Unicode characters, obs
 HUI's own source is [MIT](LICENSE). Dependencies, fonts and bundled assets retain their respective licenses; see [THIRD_PARTY.md](THIRD_PARTY.md). Issues and improvements are welcome. Include platform, architecture, version and a minimal reproducer with private content removed. Detailed implementation gaps are recorded in [docs/STATUS.md](docs/STATUS.md) (Chinese).
 
 [![Made with Slint](https://raw.githubusercontent.com/slint-ui/slint/master/logo/MadeWithSlint-logo-whitebg.png)](https://slint.dev)
+
+```sh
+# Android ARM64 — ANDROID_HOME / JAVA_HOME required
+bash scripts/package-android.sh preview
+```

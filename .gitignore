@@ -12,3 +12,8 @@
 /docs/screenshots/*
 !/docs/screenshots/logo-preview.png
 !/docs/screenshots/i18n-*.png
+/packaging/android/.gradle/
+/packaging/android/build/
+/packaging/android/app/build/
+/packaging/android/generated/
+/packaging/android/local.properties

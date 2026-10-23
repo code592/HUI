@@ -1,3 +1,5 @@
+#[cfg(target_os = "android")]
+use crate::android::clipboard as arboard;
 use crate::i18n::{self, message, tr};
 use crate::{AppWindow, FileRow, TabRow, worker};
 use hui_core::{Document, FileStamp, LocalStorage, Selection, Viewport, storage::Preferences};
@@ -25,7 +27,8 @@ struct Tab {
     stamp: Option<FileStamp>,
     document: Document,
     view: Viewport,
-    pending_save: Option<(PathBuf, Rope)>,
+    pending_save: Option<(String, PathBuf, Rope)>,
+    save_sequence: u64,
     recovery: PathBuf,
     recovery_revision: u64,
 }
@@ -43,6 +46,8 @@ pub struct App {
     debounce: Timer,
     autosave: Timer,
     search_cancel: Arc<AtomicBool>,
+    #[cfg(target_os = "android")]
+    android_exports: std::collections::HashMap<PathBuf, (u64, Rope)>,
 }
 impl App {
     fn tab(&self) -> &Tab {
@@ -78,6 +83,7 @@ impl App {
             path,
             stamp,
             pending_save: None,
+            save_sequence: 0,
             recovery_revision: 0,
             recovery: self.data.join(format!("recovery-{id}.md")),
         });
@@ -99,11 +105,7 @@ impl App {
                 self.prefs.recent.retain(|p| p != &path);
                 self.prefs.recent.insert(0, path.clone());
                 self.prefs.recent.truncate(40);
-                let name = path
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .into_owned();
+                let name = document_name(&path);
                 self.add_rope(rope, Some(path), Some(stamp), name);
                 self.refresh(ui, true);
                 self.persist();
@@ -282,12 +284,7 @@ impl App {
             self.files
                 .iter()
                 .map(|p| FileRow {
-                    label: p
-                        .file_name()
-                        .unwrap_or_default()
-                        .to_string_lossy()
-                        .into_owned()
-                        .into(),
+                    label: document_name(p).into(),
                     detail: p.display().to_string().into(),
                     folder: p.is_dir(),
                     depth: 0,
@@ -317,6 +314,18 @@ impl App {
             Err(e) => ui.set_notice(tr(&e.to_string()).into()),
         }
     }
+}
+fn document_name(path: &Path) -> String {
+    #[cfg(target_os = "android")]
+    if let Ok(name) = crate::android::call("documentName", &[&path.to_string_lossy()])
+        && !name.is_empty()
+    {
+        return name;
+    }
+    path.file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned()
 }
 fn is_markdown(p: &Path) -> bool {
     p.extension()
@@ -359,6 +368,7 @@ fn save_index(app: &State, ui: &AppWindow, save_as: bool, automatic: bool, index
     if tab.pending_save.is_some() || (automatic && !tab.document.is_dirty()) {
         return;
     }
+    #[cfg(not(target_os = "android"))]
     let path = if save_as || (tab.path.is_none() && !automatic) {
         rfd::FileDialog::new()
             .set_title(tr("保存 Markdown"))
@@ -370,6 +380,13 @@ fn save_index(app: &State, ui: &AppWindow, save_as: bool, automatic: bool, index
             (tab.document.revision() != tab.recovery_revision).then(|| tab.recovery.clone())
         })
     };
+    #[cfg(target_os = "android")]
+    let path = {
+        let _ = save_as;
+        tab.path.clone().or_else(|| {
+            (tab.document.revision() != tab.recovery_revision).then(|| tab.recovery.clone())
+        })
+    };
     let snapshot = tab.document.snapshot();
     let recovery = tab.recovery.clone();
     let expected = if path == tab.path {
@@ -377,15 +394,28 @@ fn save_index(app: &State, ui: &AppWindow, save_as: bool, automatic: bool, index
     } else {
         None
     };
-    let id = tab.id.to_string();
     let weak = ui.as_weak();
     if let Some(path) = path {
-        tab.pending_save = Some((path.clone(), snapshot.clone()));
+        tab.save_sequence = tab.save_sequence.wrapping_add(1);
+        let id = format!("{}:{}", tab.id, tab.save_sequence);
+        tab.pending_save = Some((id.clone(), path.clone(), snapshot.clone()));
         ui.set_status(tr("正在保存…").into());
         std::thread::spawn(move || {
             let result = LocalStorage::save(&path, &snapshot, expected.as_ref());
             let (stamp, error) = match result {
-                Ok(stamp) => (stamp.0.to_hex().to_string(), String::new()),
+                Ok(stamp) => {
+                    #[cfg(target_os = "android")]
+                    let error = crate::android::sync_document(&path)
+                        .err()
+                        .map(|e| e.to_string())
+                        .unwrap_or_default();
+                    #[cfg(not(target_os = "android"))]
+                    let error = String::new();
+                    if !error.is_empty() {
+                        let _ = LocalStorage::save(&recovery, &snapshot, None);
+                    }
+                    (stamp.0.to_hex().to_string(), error)
+                }
                 Err(e) => {
                     let _ = LocalStorage::save(&recovery, &snapshot, None);
                     (String::new(), e.to_string())
@@ -431,6 +461,7 @@ fn image_markdown(a: &App, bytes: &[u8], extension: &str) -> anyhow::Result<Stri
     file.sync_all()?;
     Ok(format!("![{}](assets/{name})", tr("图片")))
 }
+#[cfg(not(target_os = "android"))]
 fn insert_source(a: &mut App, ui: &AppWindow, insert: String) -> anyhow::Result<()> {
     a.sync_selection(ui);
     let t = a.tab_mut();
@@ -525,11 +556,16 @@ fn source_clipboard(app: &State, ui: &AppWindow, command: &str) {
     }
 }
 fn action(app: &State, ui: &AppWindow, name: &str) {
+    #[cfg(target_os = "android")]
+    if android_action(app, ui, name) {
+        return;
+    }
     match name {
         "copy-source" | "cut-source" | "paste-source" => {
             source_clipboard(app, ui, name);
             return;
         }
+        #[cfg(not(target_os = "android"))]
         "insert-image" => {
             if ui.get_mode() == 3 || (ui.get_mode() == 2 && !ui.get_editor_active()) {
                 ui.set_notice(tr("请先在源码或即时模式中放置光标").into());
@@ -577,6 +613,7 @@ fn action(app: &State, ui: &AppWindow, name: &str) {
         "finish-inline" => {
             app.borrow_mut().render_key = None;
         }
+        #[cfg(not(target_os = "android"))]
         "open" => {
             if let Some(paths) = rfd::FileDialog::new()
                 .add_filter("Markdown", &["md", "markdown", "txt"])
@@ -592,6 +629,7 @@ fn action(app: &State, ui: &AppWindow, name: &str) {
                 }
             }
         }
+        #[cfg(not(target_os = "android"))]
         "folder" => {
             if let Some(path) = rfd::FileDialog::new().pick_folder() {
                 app.borrow_mut().folder(&path, ui);
@@ -647,6 +685,7 @@ fn action(app: &State, ui: &AppWindow, name: &str) {
             }
             schedule_save(app, ui);
         }
+        #[cfg(not(target_os = "android"))]
         "export-html" | "export-pdf" => {
             let pdf = name == "export-pdf";
             let ext = if pdf { "pdf" } else { "html" };
@@ -702,6 +741,16 @@ fn try_close_tab(app: &State, ui: &AppWindow, index: usize) -> bool {
         ui.set_notice(tr("正在保存，请稍后关闭").into());
         return false;
     }
+    #[cfg(target_os = "android")]
+    if t.document.is_dirty() {
+        if let Err(e) = LocalStorage::save(&t.recovery, &t.document.snapshot(), None) {
+            ui.set_notice(e.to_string().into());
+            return false;
+        }
+        ui.set_notice("Changes kept in local recovery; save a copy before closing.".into());
+        return false;
+    }
+    #[cfg(not(target_os = "android"))]
     if t.document.is_dirty() {
         let answer = rfd::MessageDialog::new()
             .set_title(tr("保留修改"))
@@ -766,7 +815,7 @@ fn close_all_tabs(app: &State, ui: &AppWindow) -> bool {
     true
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "android"))]
 pub(crate) fn open_paths(app: &State, ui: &AppWindow, paths: Vec<PathBuf>) {
     let mut a = app.borrow_mut();
     for path in paths {
@@ -784,6 +833,9 @@ pub(crate) fn open_paths(app: &State, ui: &AppWindow, paths: Vec<PathBuf>) {
 }
 
 pub fn setup(ui: &AppWindow, args: &[String]) -> anyhow::Result<State> {
+    #[cfg(target_os = "android")]
+    let data = crate::android::data_dir().join("profile");
+    #[cfg(not(target_os = "android"))]
     let data = std::env::var_os("HUI_DATA_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
@@ -818,6 +870,8 @@ pub fn setup(ui: &AppWindow, args: &[String]) -> anyhow::Result<State> {
         debounce: Timer::default(),
         autosave: Timer::default(),
         search_cancel: Arc::new(AtomicBool::new(false)),
+        #[cfg(target_os = "android")]
+        android_exports: Default::default(),
     }));
     {
         let mut a = app.borrow_mut();
@@ -872,6 +926,8 @@ fn bind(ui: &AppWindow, app: &State) {
             "Menlo"
         } else if cfg!(target_os = "windows") {
             "Consolas"
+        } else if cfg!(target_os = "android") {
+            "monospace"
         } else {
             "DejaVu Sans Mono"
         }
@@ -1141,11 +1197,11 @@ fn bind(ui: &AppWindow, app: &State) {
     ui.on_save_finished(move |id, stamp, error| {
         if let Some(ui) = w.upgrade() {
             let mut app = a.borrow_mut();
-            if let Some(t) = app
-                .tabs
-                .iter_mut()
-                .find(|t| t.id.to_string() == id.as_str())
-                && let Some((path, snapshot)) = t.pending_save.take()
+            if let Some(t) = app.tabs.iter_mut().find(|t| {
+                t.pending_save
+                    .as_ref()
+                    .is_some_and(|(token, _, _)| token == id.as_str())
+            }) && let Some((_, path, snapshot)) = t.pending_save.take()
             {
                 if error.is_empty() && path == t.recovery {
                     if t.document.snapshot() == snapshot {
@@ -1154,16 +1210,16 @@ fn bind(ui: &AppWindow, app: &State) {
                 } else if error.is_empty() {
                     t.document.mark_saved(snapshot);
                     t.stamp = stamp.parse().ok().map(FileStamp);
-                    t.name = path
-                        .file_name()
-                        .unwrap_or_default()
-                        .to_string_lossy()
-                        .into_owned();
+                    t.name = document_name(&path);
                     t.path = Some(path);
                     if !t.document.is_dirty() {
                         let _ = std::fs::remove_file(&t.recovery);
                     }
                 } else {
+                    // A provider failure can follow a successful private-mirror save.
+                    if !stamp.is_empty() && t.path.as_ref() == Some(&path) {
+                        t.stamp = stamp.parse().ok().map(FileStamp);
+                    }
                     ui.set_notice(error.clone());
                 }
             }
@@ -1439,4 +1495,129 @@ fn bind_search(ui: &AppWindow, app: &State) {
             schedule_save(&a, &ui);
         }
     });
+}
+
+#[cfg(target_os = "android")]
+pub(crate) fn checkpoint(app: &State) {
+    let mut a = app.borrow_mut();
+    for tab in &a.tabs {
+        if tab.document.is_dirty() {
+            let _ = LocalStorage::save(&tab.recovery, &tab.document.snapshot(), None);
+        }
+    }
+    a.persist();
+}
+
+#[cfg(target_os = "android")]
+fn android_action(app: &State, ui: &AppWindow, name: &str) -> bool {
+    let result = match name {
+        "open" => crate::android::call("openDocument", &[]).map(|_| ()),
+        "folder" => {
+            ui.set_notice("Use Open to select a document with Android Files.".into());
+            Ok(())
+        }
+        "save-as" | "save" if name == "save-as" || app.borrow().tab().path.is_none() => {
+            let mut a = app.borrow_mut();
+            let t = a.tab();
+            let path = a
+                .data
+                .join(format!("export-{}-{}.md", t.id, t.document.revision()));
+            let id = t.id;
+            let snapshot = t.document.snapshot();
+            let filename = t.name.clone();
+            if !a.android_exports.is_empty() {
+                ui.set_notice("Finish the current Save As dialog first.".into());
+                return true;
+            }
+            a.android_exports
+                .insert(path.clone(), (id, snapshot.clone()));
+            let weak = ui.as_weak();
+            std::thread::spawn(move || {
+                let result = LocalStorage::save(&path, &snapshot, None)
+                    .map_err(anyhow::Error::from)
+                    .and_then(|_| {
+                        crate::android::call("saveDocument", &[&path.to_string_lossy(), &filename])
+                            .map(|_| ())
+                    });
+                if let Err(e) = result {
+                    crate::android::dispatch(
+                        "cancel-save".into(),
+                        path.to_string_lossy().into_owned(),
+                    );
+                    let _ =
+                        weak.upgrade_in_event_loop(move |ui| ui.set_notice(e.to_string().into()));
+                }
+            });
+            Ok(())
+        }
+        "export-html" | "export-pdf" => {
+            let a = app.borrow();
+            let t = a.tab();
+            let pdf = name == "export-pdf";
+            let ext = if pdf { "pdf" } else { "html" };
+            let filename = format!("{}.{}", t.name.trim_end_matches(".md"), ext);
+            let path = a.data.join(format!("export-{}.{}", t.id, ext));
+            let snapshot = t.document.snapshot();
+            let root = t
+                .path
+                .as_ref()
+                .and_then(|p| p.parent())
+                .map(Path::to_path_buf);
+            let weak = ui.as_weak();
+            std::thread::spawn(move || {
+                let result =
+                    worker::export(&snapshot.to_string(), &path, root, pdf).and_then(|_| {
+                        crate::android::call("saveCopy", &[&path.to_string_lossy(), &filename])
+                            .map(|_| ())
+                    });
+                if let Err(e) = result {
+                    let _ =
+                        weak.upgrade_in_event_loop(move |ui| ui.set_notice(e.to_string().into()));
+                }
+            });
+            Ok(())
+        }
+        "insert-image" => {
+            ui.set_notice("Open a document folder on desktop to manage relative image assets. Android image insertion is not yet supported.".into());
+            Ok(())
+        }
+        _ => return false,
+    };
+    if let Err(e) = result {
+        ui.set_notice(e.to_string().into());
+    }
+    true
+}
+
+#[cfg(target_os = "android")]
+pub(crate) fn android_saved(app: &State, ui: &AppWindow, path: PathBuf, canceled: bool) {
+    let mut a = app.borrow_mut();
+    let Some((id, snapshot)) = a.android_exports.remove(&path) else {
+        return;
+    };
+    if canceled {
+        return;
+    }
+    if let Some(t) = a.tabs.iter_mut().find(|t| t.id == id) {
+        t.stamp = LocalStorage::read(&path).ok().map(|(_, stamp)| stamp);
+        // Ignore completions from an autosave started before the new URI was chosen.
+        t.pending_save = None;
+        t.path = Some(path.clone());
+        if let Ok(name) = crate::android::call("documentName", &[&path.to_string_lossy()])
+            && !name.is_empty()
+        {
+            t.name = name;
+        }
+        t.document.mark_saved(snapshot);
+        if !t.document.is_dirty() {
+            let _ = std::fs::remove_file(&t.recovery);
+        }
+    }
+    a.prefs.recent.retain(|p| p != &path);
+    a.prefs.recent.insert(0, path);
+    a.prefs.recent.truncate(40);
+    a.persist();
+    a.refresh(ui, false);
+    drop(a);
+    schedule_save(app, ui);
 }

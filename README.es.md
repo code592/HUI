@@ -10,7 +10,7 @@ Un editor y lector Markdown moderno, limpio y local, creado con **Rust + Slint +
 
 ## Estado
 
-**Versión preliminar de desarrollo 0.2.0**. Hay paquetes de escritorio disponibles, con funciones aún incompletas. Las aplicaciones Android e iOS todavía no están listas para distribuirse.
+**Versión preliminar de desarrollo 0.2.0**. Hay paquetes de escritorio disponibles. Se han añadido una aplicación nativa Android ARM64 y la compilación de APK, con limitaciones móviles documentadas. iOS aún no está disponible. Consulta [la compilación y las limitaciones de Android](docs/ANDROID.md) y [la validación de plataformas](docs/PLATFORM-VALIDATION.md).
 
 ## Funciones
 
@@ -74,3 +74,8 @@ Al copiar texto PDF, algunos caracteres CJK y cirílicos pueden sustituirse por 
 El código propio de HUI usa [MIT](LICENSE). Las dependencias, fuentes y recursos conservan sus licencias; consulta [THIRD_PARTY.md](THIRD_PARTY.md). Al informar de un problema, incluye plataforma, arquitectura, versión y un documento mínimo sin contenido privado. Los detalles pendientes están en [docs/STATUS.md](docs/STATUS.md) (chino).
 
 [![Made with Slint](https://raw.githubusercontent.com/slint-ui/slint/master/logo/MadeWithSlint-logo-whitebg.png)](https://slint.dev)
+
+```sh
+# Android ARM64 — ANDROID_HOME / JAVA_HOME required
+bash scripts/package-android.sh preview
+```

@@ -76,20 +76,25 @@ pub struct Renderer {
 }
 
 pub fn assets() -> PathBuf {
-    if let Ok(p) = std::env::var("HUI_ASSETS") {
-        return PathBuf::from(p);
-    }
-    if let Ok(exe) = std::env::current_exe() {
-        for path in [
-            exe.parent().unwrap().join("../Resources/katex"),
-            exe.parent().unwrap().join("assets/katex"),
-        ] {
-            if path.join("katex.min.css").exists() {
-                return path;
+    #[cfg(target_os = "android")]
+    return crate::android::data_dir().join("katex");
+    #[cfg(not(target_os = "android"))]
+    {
+        if let Ok(p) = std::env::var("HUI_ASSETS") {
+            return PathBuf::from(p);
+        }
+        if let Ok(exe) = std::env::current_exe() {
+            for path in [
+                exe.parent().unwrap().join("../Resources/katex"),
+                exe.parent().unwrap().join("assets/katex"),
+            ] {
+                if path.join("katex.min.css").exists() {
+                    return path;
+                }
             }
         }
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../vendor/katex")
     }
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../vendor/katex")
 }
 
 impl Renderer {

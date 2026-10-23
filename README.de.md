@@ -10,7 +10,7 @@ Ein moderner, übersichtlicher Markdown-Editor und -Reader mit lokaler Datenhalt
 
 ## Status
 
-**Entwicklungsvorschau 0.2.0**. Desktop-Pakete sind verfügbar; einige Funktionen sind noch unvollständig. Android- und iOS-Apps sind noch nicht lieferbar.
+**Entwicklungsvorschau 0.2.0**. Desktop-Pakete sind verfügbar. Eine native Android-ARM64-App und der APK-Build sind jetzt enthalten; die mobile Umsetzung hat noch Einschränkungen. iOS ist noch nicht verfügbar. Siehe [Android-Build und Einschränkungen](docs/ANDROID.md) sowie [Plattformprüfung](docs/PLATFORM-VALIDATION.md).
 
 ## Funktionen
 
@@ -74,3 +74,8 @@ Beim Kopieren von PDF-Text können einzelne CJK- und kyrillische Zeichen durch o
 Der eigene HUI-Quellcode steht unter [MIT](LICENSE). Abhängigkeiten, Schriften und Ressourcen behalten ihre jeweiligen Lizenzen; siehe [THIRD_PARTY.md](THIRD_PARTY.md). Fehlermeldungen sollten Plattform, Architektur, Version und ein minimales Beispieldokument ohne private Inhalte enthalten. Details zu offenen Punkten stehen in [docs/STATUS.md](docs/STATUS.md) (Chinesisch).
 
 [![Made with Slint](https://raw.githubusercontent.com/slint-ui/slint/master/logo/MadeWithSlint-logo-whitebg.png)](https://slint.dev)
+
+```sh
+# Android ARM64 — ANDROID_HOME / JAVA_HOME required
+bash scripts/package-android.sh preview
+```

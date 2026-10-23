@@ -10,7 +10,7 @@
 
 ## 状態
 
-**0.2.0 開発プレビュー**。デスクトップ版を提供していますが、未実装の機能があります。Android/iOS 版はまだ提供できません。
+**0.2.0 開発プレビュー**。デスクトップ版に加え、Android ARM64 のネイティブアプリと APK ビルドを追加しました。モバイル対応には未完了の項目があり、iOS 版はまだ提供していません。[Android のビルドと制限](docs/ANDROID.md)、[プラットフォーム検証記録](docs/PLATFORM-VALIDATION.md)をご覧ください。
 
 ## 機能
 
@@ -74,3 +74,8 @@ PDF の文字コピーでは、一部の漢字やキリル文字が同じ字形�
 HUI 独自のソースは [MIT](LICENSE) です。依存関係、フォント、同梱リソースには各ライセンスが適用されます。[THIRD_PARTY.md](THIRD_PARTY.md) を参照してください。問題報告には OS、アーキテクチャ、バージョン、個人情報を除いた最小の再現文書を添えてください。詳細な未完了項目は [docs/STATUS.md](docs/STATUS.md)（中国語）に記録しています。
 
 [![Made with Slint](https://raw.githubusercontent.com/slint-ui/slint/master/logo/MadeWithSlint-logo-whitebg.png)](https://slint.dev)
+
+```sh
+# Android ARM64 — ANDROID_HOME / JAVA_HOME required
+bash scripts/package-android.sh preview
+```
