@@ -22,7 +22,7 @@ bash scripts/package-android.sh preview
 ## 文件与生命周期
 
 - 使用系统文档选择器打开，支持系统“打开方式”和分享文本/文档；默认进入阅读模式。
-- 系统授予的 `content://` URI 在 Java 层处理；Rust 使用应用私有目录的 UTF-8 文档镜像。应用不申请全盘存储权限。
+- 系统授予的 `content://` URI 在 Java 层处理；Rust 使用应用私有目录的 UTF-8 文档镜像，URI 映射统一使用规范路径，避免 `/data/data` 与 `/data/user` 别名丢失写回关联。应用不申请全盘存储权限。
 - 保存先原子写入私有镜像，再写回文档提供方。写回前比较 SHA-256，发现外部修改时拒绝覆盖；本地编辑继续保留，可另存为。
 - 另存为 Markdown 后关联新 URI；HTML/PDF 导出只创建导出文件，不替换当前文档。
 - 提供方不保证原子替换，写回中途磁盘/提供方错误仍可能使远端文件部分写入。私有镜像和恢复副本保留，不应把此路径宣称为与桌面文件系统同等的原子保存。
@@ -43,6 +43,6 @@ bash scripts/package-android.sh preview
 bash scripts/check-android-device.sh emulator-5560
 ```
 
-需要已启动的 ARM64 模拟器。脚本只接受明确的 emulator 序列号，避免安装到连接的个人手机。单独测试 APK 中的 ContentProvider 验证保存、Unicode/CRLF 保真、重复保存、外部冲突、只读与权限撤销。测试 Provider 不进入产品 APK，测试结束卸载。
+需要已启动的 ARM64 模拟器。脚本只接受明确的 emulator 序列号，避免安装到连接的个人手机。单独测试 APK 中的 ContentProvider 验证实际导入后使用 Rust 规范路径写回、Unicode/CRLF 保真、重复保存、外部冲突、只读与权限撤销。测试 Provider 不进入产品 APK，测试结束卸载。
 
 本次实际构建与验证结果见 [PLATFORM-VALIDATION.md](PLATFORM-VALIDATION.md)。

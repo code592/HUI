@@ -56,9 +56,12 @@ public final class SmokeInstrumentation extends Instrumentation {
                 throw new AssertionError("Content URI did not reach the Rust document controller: " + (config.isFile() ? new String(java.nio.file.Files.readAllBytes(config.toPath()), StandardCharsets.UTF_8) : "no preferences"));
             }
             check(java.util.Arrays.equals(java.nio.file.Files.readAllBytes(imported.toPath()), original), "URI import changed document bytes");
+            // Use the real import mapping, not a manually seeded test mapping. Rust passes
+            // the canonical path while Java's filesDir may use a different Android alias.
+            local = imported;
+            check(activity.documentName(local.getCanonicalPath()).equals("Document.md"), "Canonical path lost display name");
             write(local, edited);
-            prefs.edit().putString(local+".uri", uri.toString()).putString(local+".sha", sha(original)).commit();
-            check(activity.syncDocument(local.toString()).isEmpty(), "Save through provider failed");
+            check(activity.syncDocument(local.getCanonicalPath()).isEmpty(), "Save through canonical import path failed");
             check(java.util.Arrays.equals(read(uri), edited), "Unicode or CRLF changed");
             check(activity.syncDocument(local.toString()).isEmpty(), "Repeated save failed");
             byte[] external = bytes("external change"), mine = bytes("unsaved local edits");
@@ -66,17 +69,21 @@ public final class SmokeInstrumentation extends Instrumentation {
             check(activity.syncDocument(local.toString()).contains("External document changed"), "Conflict was not detected");
             check(java.util.Arrays.equals(read(uri), external), "Conflict overwrote external document");
             check(java.util.Arrays.equals(java.nio.file.Files.readAllBytes(local.toPath()), mine), "Conflict lost local edits");
-            prefs.edit().putString(local+".uri", uri.buildUpon().path("/readonly").build().toString()).putString(local+".sha", sha(external)).commit();
+            prefs.edit().putString(local.getCanonicalPath()+".uri", uri.buildUpon().path("/readonly").build().toString()).putString(local.getCanonicalPath()+".sha", sha(external)).commit();
             check(!activity.syncDocument(local.toString()).isEmpty(), "Read-only document silently saved");
             check(java.util.Arrays.equals(read(uri), external), "Read-only failure changed document");
-            prefs.edit().putString(local+".uri", uri.buildUpon().path("/denied").build().toString()).commit();
+            prefs.edit().putString(local.getCanonicalPath()+".uri", uri.buildUpon().path("/denied").build().toString()).commit();
             check(!activity.syncDocument(local.toString()).isEmpty(), "Revoked permission silently saved");
-            result.putString("stream", "PASS: provider save, native Slint initialization, content URI opening, Unicode/CRLF, repeated save, conflict preservation, read-only and revoked permission\n");
+            result.putString("stream", "PASS: provider save, native Slint initialization, content URI opening and canonical-path write-back, Unicode/CRLF, repeated save, conflict preservation, read-only and revoked permission\n");
             finish(Activity.RESULT_OK, result);
         } catch (Throwable e) {
             result.putString("stream", "FAIL: " + android.util.Log.getStackTraceString(e)); finish(Activity.RESULT_CANCELED, result);
         } finally {
-            local.delete(); prefs.edit().remove(local+".uri").remove(local+".sha").commit();
+            try {
+                String key = local.getCanonicalPath();
+                prefs.edit().remove(key+".uri").remove(key+".sha").remove(key+".name").commit();
+                local.delete();
+            } catch (IOException ignored) { }
         }
     }
 }

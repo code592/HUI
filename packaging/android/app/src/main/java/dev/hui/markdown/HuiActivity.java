@@ -42,7 +42,12 @@ public final class HuiActivity extends NativeActivity {
             try (InputStream in = getAssets().open(source); OutputStream out = new FileOutputStream(target)) { transfer(in, out, Long.MAX_VALUE); }
         }
     }
-    public String documentName(String path) { return mappings().getString(path+".name", ""); }
+    // Rust canonicalizes opened paths; Android also exposes /data/data and /data/user aliases.
+    private static String documentKey(String path) {
+        try { return new File(path).getCanonicalPath(); }
+        catch (IOException e) { return new File(path).getAbsolutePath(); }
+    }
+    public String documentName(String path) { return mappings().getString(documentKey(path)+".name", ""); }
     public String systemLanguage() { return getResources().getConfiguration().getLocales().get(0).toLanguageTag(); }
     public String dataDirectory() { return getFilesDir().getAbsolutePath(); }
     public String nativeReady() { runOnUiThread(() -> { ready = true; handleIntent(getIntent()); }); return ""; }
@@ -95,7 +100,8 @@ public final class HuiActivity extends NativeActivity {
                     int grant = data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
                     try { getContentResolver().takePersistableUriPermission(uri, grant); } catch (SecurityException ignored) { }
                     String sha; try (InputStream in = new FileInputStream(path)) { sha = digest(in); }
-                    mappings().edit().putString(path+".uri", uri.toString()).putString(path+".sha", sha).putString(path+".name", displayName(uri)).commit();
+                    String key = documentKey(path);
+                    mappings().edit().putString(key+".uri", uri.toString()).putString(key+".sha", sha).putString(key+".name", displayName(uri)).commit();
                     event("saved", path);
                 }
                 event("notice", "Saved: " + displayName(uri));
@@ -124,25 +130,27 @@ public final class HuiActivity extends NativeActivity {
                 if (in == null) throw new IOException("Cannot read document"); transfer(in, out, LIMIT);
             } catch (Exception e) { file.delete(); throw e; }
             String digest; try (InputStream in = new FileInputStream(file)) { digest = digest(in); }
-            mappings().edit().putString(file.getAbsolutePath()+".uri", uri.toString()).putString(file.getAbsolutePath()+".sha", digest).commit();
+            String key = documentKey(file.getAbsolutePath());
+            mappings().edit().putString(key+".uri", uri.toString()).putString(key+".sha", digest).putString(key+".name", displayName(uri)).commit();
             event("open", file.getAbsolutePath());
         } catch (Exception e) { error(e); } });
     }
     /** Called on Rust's save worker, never on the Android UI thread. */
     public synchronized String syncDocument(String path) {
-        String value = mappings().getString(path+".uri", null);
+        String key = documentKey(path);
+        String value = mappings().getString(key+".uri", null);
         if (value == null) return ""; // Recovery and export files are private.
         try {
             Uri uri = Uri.parse(value);
-            String expected = mappings().getString(path+".sha", "");
+            String expected = mappings().getString(key+".sha", "");
             try (InputStream in = getContentResolver().openInputStream(uri)) {
                 if (in == null || !digest(in).equals(expected)) return "External document changed. Your edits are kept locally; use Save As.";
             }
             String updated; try (InputStream in = new FileInputStream(path)) { updated = digest(in); }
             try (InputStream in = new FileInputStream(path); OutputStream out = getContentResolver().openOutputStream(uri, "wt")) {
-                if (out == null) throw new IOException("Document is read-only"); transfer(in, out, LIMIT);
+                if (out == null) throw new IOException("Document is read-only"); transfer(in, out, Long.MAX_VALUE);
             }
-            mappings().edit().putString(path+".sha", updated).commit(); return "";
+            mappings().edit().putString(key+".sha", updated).commit(); return "";
         } catch (Exception e) { return "Original file could not be saved; local recovery retained. " + e; }
     }
     public String copyText(String value) { runOnUiThread(() -> ((android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("HUI", value))); return ""; }
