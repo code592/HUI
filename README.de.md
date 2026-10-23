@@ -25,6 +25,8 @@ Ein moderner, übersichtlicher Markdown-Editor und -Reader mit lokaler Datenhalt
 
 Wählen Sie Ihre Architektur unter [Releases](https://github.com/code592/HUI/releases). macOS: DMG öffnen und HUI nach Applications ziehen. Windows: die gesamte ZIP-Datei entpacken und hui.exe starten; DLLs und assets daneben belassen. Linux: die unten genannten Abhängigkeiten installieren, tar.gz entpacken und ./bin/hui starten. Die Pakete sind nicht offiziell signiert oder notarisiert.
 
+Die Android- und Mermaid-Änderungen dieses Branches sind Entwicklungsvorschauen und noch nicht unter Releases veröffentlicht. Windows-Artefakte gibt es im [Paket-Workflow](https://github.com/code592/HUI/actions/workflows/platform-packages.yml); die folgenden Skripte erstellen Linux-/Android-Pakete in `dist/`.
+
 ## Plattformen
 
 Das macOS-Paket ist für Apple Silicon; Windows und Linux bieten x64/ARM64, Android eine ARM64-Vorschau. Diese Pakete werden in Windows-Server-2022-CI, Linux-Containern und einem Android-API-36-Emulator geprüft; für Windows ARM64 ist nur der Build geprüft. Frühere Ergebnisse einer Windows-11-ARM-VM bestätigen nicht die Abnahme dieser Pakete. Windows 10 LTSC 2021 / 22H2, macOS 12/Intel, die Mindestversion Android 10 und die vollständige Prüfung auf physischen Geräten stehen noch aus. Siehe [Prüfbericht](docs/PLATFORM-VALIDATION.md).

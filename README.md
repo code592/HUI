@@ -25,6 +25,8 @@
 
 在 [Releases](https://github.com/code592/HUI/releases) 下载对应架构。macOS：打开 DMG，将 HUI 拖到 Applications。Windows：完整解压 ZIP 后运行 hui.exe；请保留旁边的 DLL 和 assets。Linux：解压 tar.gz，运行 ./bin/hui，先安装下方依赖。安装包未作正式开发者签名或公证。
 
+本分支的 Android 与 Mermaid 更新属于开发预览，尚未发布到 Releases。Windows 构建产物可在 [打包工作流](https://github.com/code592/HUI/actions/workflows/platform-packages.yml) 获取；Linux/Android 可按下方脚本构建至 `dist/`。
+
 ## 平台
 
 macOS 包为 Apple Silicon；Windows 和 Linux 提供 x64/ARM64，Android 提供 ARM64 预览包。本批验证使用 Windows Server 2022 CI、Linux 容器和 Android API 36 模拟器；Windows ARM64 仅完成构建检查。早期 Windows 11 ARM 虚拟机记录不代表本批包已通过实机验收。Windows 10 LTSC 2021 / 22H2、macOS 12/Intel、Android 10 最低版本及完整真机矩阵仍待验证。详见 [本次验证记录](docs/PLATFORM-VALIDATION.md)。

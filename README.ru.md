@@ -25,6 +25,8 @@
 
 Выберите архитектуру в [Releases](https://github.com/code592/HUI/releases). macOS: откройте DMG и перетащите HUI в Applications. Windows: распакуйте весь ZIP и запустите hui.exe; сохраните DLL и assets рядом. Linux: установите зависимости ниже, распакуйте tar.gz и запустите ./bin/hui. Пакеты не имеют официальной подписи и нотариального заверения Apple.
 
+Обновления Android и Mermaid в этой ветке являются предварительными и ещё не опубликованы в Releases. Артефакты Windows доступны в [процессе сборки пакетов](https://github.com/code592/HUI/actions/workflows/platform-packages.yml); скрипты ниже создают пакеты Linux/Android в `dist/`.
+
 ## Платформы
 
 Пакет macOS предназначен для Apple Silicon; Windows и Linux — для x64/ARM64, Android — предварительная версия ARM64. Эта сборка проверяется в CI Windows Server 2022, контейнерах Linux и эмуляторе Android API 36; для Windows ARM64 проверена только сборка. Ранние результаты виртуальной машины Windows 11 ARM не подтверждают приёмку этих пакетов. Windows 10 LTSC 2021 / 22H2, macOS 12/Intel, минимальная версия Android 10 и полная матрица физических устройств ещё не проверены. См. [отчёт о проверке](docs/PLATFORM-VALIDATION.md).

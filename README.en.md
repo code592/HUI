@@ -25,6 +25,8 @@ A modern, clean, local-first Markdown editor and reader built with **Rust + Slin
 
 Choose your architecture in [Releases](https://github.com/code592/HUI/releases). macOS: open the DMG and drag HUI to Applications. Windows: extract the entire ZIP and run hui.exe; keep the DLLs and assets alongside it. Linux: extract the tar.gz and run ./bin/hui after installing the dependencies below. Packages are not officially signed or notarized.
 
+The Android and Mermaid updates on this branch are development previews and have not been published to Releases. Windows artifacts are available from the [packaging workflow](https://github.com/code592/HUI/actions/workflows/platform-packages.yml); the scripts below build Linux/Android packages into `dist/`.
+
 ## Platforms
 
 The macOS package targets Apple Silicon; Windows and Linux target x64/ARM64, and Android has an ARM64 preview. This batch is checked on Windows Server 2022 CI, Linux containers and an Android API 36 emulator; Windows ARM64 is build-checked only. Earlier Windows 11 ARM VM results do not establish acceptance of these packages. Windows 10 LTSC 2021 / 22H2, macOS 12/Intel, the Android 10 minimum and the full physical-device matrix remain unverified. See the [validation record](docs/PLATFORM-VALIDATION.md).

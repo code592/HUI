@@ -25,6 +25,8 @@ Un éditeur et lecteur Markdown moderne, sobre et local, construit avec **Rust +
 
 Choisissez votre architecture dans [Releases](https://github.com/code592/HUI/releases). macOS : ouvrez le DMG et glissez HUI dans Applications. Windows : extrayez tout le ZIP puis lancez hui.exe ; conservez les DLL et assets à côté. Linux : installez les dépendances ci-dessous, extrayez le tar.gz puis lancez ./bin/hui. Les paquets ne sont pas officiellement signés ni notariés.
 
+Les mises à jour Android et Mermaid de cette branche sont des préversions de développement, pas encore publiées dans Releases. Les artefacts Windows sont disponibles dans le [workflow de création des paquets](https://github.com/code592/HUI/actions/workflows/platform-packages.yml) ; les scripts ci-dessous génèrent les paquets Linux/Android dans `dist/`.
+
 ## Plateformes
 
 Le paquet macOS vise Apple Silicon ; Windows et Linux proposent x64/ARM64, et Android une préversion ARM64. Cette série est vérifiée sur Windows Server 2022 en CI, dans des conteneurs Linux et sur un émulateur Android API 36 ; seul le build est vérifié pour Windows ARM64. Les anciens résultats sur une VM Windows 11 ARM ne valident pas ces paquets. Windows 10 LTSC 2021 / 22H2, macOS 12/Intel, le minimum Android 10 et la matrice complète des appareils physiques restent à vérifier. Voir le [rapport de validation](docs/PLATFORM-VALIDATION.md).

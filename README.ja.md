@@ -25,6 +25,8 @@
 
 [Releases](https://github.com/code592/HUI/releases) でアーキテクチャに合うパッケージを選んでください。macOS：DMG を開き HUI を Applications にドラッグします。Windows：ZIP 全体を展開して hui.exe を実行します。DLL と assets は隣に置いてください。Linux：下記の依存ライブラリを入れ、tar.gz を展開して ./bin/hui を実行します。正式な署名・公証は行っていません。
 
+このブランチの Android と Mermaid の更新は開発プレビューで、Releases には未公開です。Windows の成果物は[パッケージ作成ワークフロー](https://github.com/code592/HUI/actions/workflows/platform-packages.yml)から取得できます。Linux/Android は以下のスクリプトで `dist/` にビルドできます。
+
 ## プラットフォーム
 
 macOS は Apple Silicon、Windows と Linux は x64/ARM64 向けで、Android は ARM64 プレビュー版です。今回の検証環境は Windows Server 2022 CI、Linux コンテナー、Android API 36 エミュレーターです。Windows ARM64 はビルドのみ確認しています。以前の Windows 11 ARM 仮想マシンでの結果は、今回のパッケージの実機検証を意味しません。Windows 10 LTSC 2021 / 22H2、macOS 12/Intel、最低対応の Android 10、および実機での総合検証は未完了です。[検証記録](docs/PLATFORM-VALIDATION.md)を参照してください。

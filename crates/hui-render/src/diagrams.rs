@@ -94,6 +94,14 @@ pub(crate) fn render(source: &str, dark: bool) -> Result<String> {
 mod tests {
     use super::*;
 
+    fn assets() -> std::path::PathBuf {
+        std::env::var_os("HUI_RENDER_TEST_ASSETS")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| {
+                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../vendor/katex")
+            })
+    }
+
     const CASES: &[(&str, &str)] = &[
         ("graph", "graph TD\n A[One] --> B[Two]"),
         (
@@ -158,8 +166,7 @@ mod tests {
         };
         use std::sync::atomic::AtomicBool;
         let mut engine = MarkdownEngine::new().unwrap();
-        let assets =
-            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../vendor/katex");
+        let assets = assets();
         for &(name, source) in CASES {
             let result = engine
                 .render(
@@ -223,8 +230,7 @@ mod tests {
             580.,
             "",
         );
-        let assets =
-            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../vendor/katex");
+        let assets = assets();
         let mut doc = NativeDocument::new(&html, None, assets, 640, 640, 1., true).unwrap();
         let pixels = doc.paint(0);
         let white_pixels = pixels
