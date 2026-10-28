@@ -182,6 +182,7 @@ export component AppWindow inherits Window {
     pure callback highlight-source(string, bool) -> styled-text;
     private property <length> source-caret-x;
     private property <length> source-caret-y;
+    private property <bool> source-has-selection: input.anchor-position-byte-offset != input.cursor-position-byte-offset;
     callback navigate(float);
     callback step(int);
     callback file-clicked(int);
@@ -221,6 +222,10 @@ export component AppWindow inherits Window {
         if root.mode == 2 { inline-input.set-selection-offsets(start,end); inline-input.focus(); }
         else { input.set-selection-offsets(start, end); input.focus(); }
     }
+    public function select-all-source() {
+        if root.mode == 2 && root.editor-active { inline-input.select-all(); inline-input.focus(); }
+        else if root.show-source { input.select-all(); input.focus(); }
+    }
     public function finish-inline() { root.editor-active = false; reader-focus.focus(); root.action("finish-inline"); }
     public function focus-editor() { if root.mode == 2 { inline-input.focus(); } else { input.focus(); } }
     public function reset-inline-scroll() { inline-scroll.viewport-y = 0px; }
@@ -238,6 +243,7 @@ export component AppWindow inherits Window {
             MenuItem { title: I18n.translate("导出 PDF…", I18n.locale); activated => { root.action("export-pdf"); } }
         }
         Menu { title: I18n.translate("编辑", I18n.locale);
+            MenuItem { title: I18n.translate("全选", I18n.locale); shortcut: @keys(Control + A); activated => { root.select-all-source(); } }
             MenuItem { title: I18n.translate("复制", I18n.locale); shortcut: @keys(Control + C); activated => { root.action(root.editor-has-focus ? "copy-source" : "copy-reading"); } }
             MenuItem { title: I18n.translate("剪切", I18n.locale); shortcut: @keys(Control + X); activated => { root.action("cut-source"); } }
             MenuItem { title: I18n.translate("粘贴", I18n.locale); shortcut: @keys(Control + V); activated => { root.action("paste-source"); } }
@@ -422,7 +428,9 @@ export component AppWindow inherits Window {
 
                                     StyledText {
                                         x: input.x; y: input.y; width: input.width; height: input.height;
-                                        visible: input.preedit-text == "";
+                                        // A transparent TextInput skips selection painting in Slint.
+                                        // Let the native input paint selected text without a second glyph layer.
+                                        visible: input.preedit-text == "" && !root.source-has-selection;
                                         text: root.highlight-source(root.source, root.theme == 1);
                                         default-font-family: root.code-font; default-font-size: root.source-font-size * 1px;
                                         default-color: Design.ink;
@@ -435,7 +443,7 @@ export component AppWindow inherits Window {
                                         width: max(1px, min(860px, source-scroll.visible-width - 16px));
                                         height: max(self.preferred-height, source-scroll.visible-height);
                                         font-family: root.code-font; font-size: root.source-font-size * 1px;
-                                        color: self.preedit-text == "" ? transparent : Design.ink; wrap: word-wrap;
+                                        color: self.preedit-text == "" && !root.source-has-selection ? transparent : Design.ink; wrap: word-wrap;
                                         single-line: false;
                                         text-cursor-width: 2px;
                                         selection-background-color: #477ad9;
@@ -454,7 +462,7 @@ export component AppWindow inherits Window {
                                         }
                                     }
                                     Rectangle {
-                                        visible: input.has-focus && input.preedit-text == "";
+                                        visible: input.has-focus && input.preedit-text == "" && !root.source-has-selection;
                                         x: input.x + root.source-caret-x; y: root.source-caret-y;
                                         width: 2px; height: root.source-font-size * 1.2px;
                                         background: Design.accent;
