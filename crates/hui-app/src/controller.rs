@@ -124,6 +124,10 @@ impl App {
         }
     }
     fn refresh(&mut self, ui: &AppWindow, replace_text: bool) {
+        if replace_text {
+            ui.set_source_all_selected(false);
+            ui.set_edit_selection(crate::TouchSelection::default());
+        }
         let tab = self.tab();
         ui.set_document_name(tab.name.clone().into());
         ui.set_location(
@@ -190,6 +194,13 @@ impl App {
     }
     fn sync_selection(&mut self, ui: &AppWindow) {
         let t = self.tab_mut();
+        if ui.get_source_all_selected() {
+            t.document.selection = Selection {
+                anchor: 0,
+                head: t.document.len_chars(),
+            };
+            return;
+        }
         let chars = |byte: i32| {
             t.view
                 .text
@@ -686,9 +697,22 @@ fn action(app: &State, ui: &AppWindow, name: &str) {
             schedule_save(app, ui);
         }
         #[cfg(not(target_os = "android"))]
-        "export-html" | "export-pdf" => {
+        "export-html" | "export-pdf" | "export-txt" => {
             let pdf = name == "export-pdf";
-            let ext = if pdf { "pdf" } else { "html" };
+            let format = if pdf {
+                worker::ExportFormat::Pdf
+            } else if name == "export-txt" {
+                worker::ExportFormat::Txt
+            } else {
+                worker::ExportFormat::Html
+            };
+            let ext = if pdf {
+                "pdf"
+            } else if name == "export-txt" {
+                "txt"
+            } else {
+                "html"
+            };
             if let Some(path) = rfd::FileDialog::new()
                 .set_file_name(format!(
                     "{}.{}",
@@ -709,7 +733,7 @@ fn action(app: &State, ui: &AppWindow, name: &str) {
                 let weak = ui.as_weak();
                 ui.set_notice(tr("正在导出完整文档…").into());
                 std::thread::spawn(move || {
-                    let message = worker::export(&snapshot.to_string(), &path, root, pdf)
+                    let message = worker::export(&snapshot.to_string(), &path, root, format)
                         .map(|_| message("已导出：{path}", &[("path", path.display().to_string())]))
                         .unwrap_or_else(|e| {
                             message("导出失败：{error}", &[("error", tr(&e.to_string()))])
@@ -946,14 +970,28 @@ fn bind(ui: &AppWindow, app: &State) {
         if let Some(ui) = w.upgrade() {
             let mut app = a.borrow_mut();
             let t = app.tab_mut();
-            if let Err(e) = t.document.replace_viewport(&t.view, &text) {
+            let all = ui.get_source_all_selected();
+            ui.set_source_all_selected(false);
+            let result = if all {
+                t.document.apply(
+                    t.document.revision(),
+                    vec![hui_core::Edit {
+                        range: 0..t.document.len_chars(),
+                        insert: text.to_string(),
+                    }],
+                )
+            } else {
+                t.document.replace_viewport(&t.view, &text)
+            };
+            if let Err(e) = result {
                 ui.set_notice(tr(&e.to_string()).into());
                 app.refresh(&ui, true);
                 return;
             }
-            t.view = t
-                .document
-                .viewport(t.view.chars.start, text.chars().count());
+            t.view = t.document.viewport(
+                if all { 0 } else { t.view.chars.start },
+                text.chars().count(),
+            );
             app.refresh(&ui, false);
             drop(app);
             schedule_render(&a, &ui);
@@ -1103,6 +1141,18 @@ fn bind(ui: &AppWindow, app: &State) {
                 // The source is unchanged, so the native document can switch blocks directly.
                 app.render.hit(x, y);
             }
+        }
+    });
+    let w = ui.as_weak();
+    ui.on_touch_source(move |phase, x, y| {
+        if let Some(ui) = w.upgrade() {
+            crate::touch_selection::gesture(&ui, phase, x, y);
+        }
+    });
+    let w = ui.as_weak();
+    ui.on_refresh_touch_source(move || {
+        if let Some(ui) = w.upgrade() {
+            crate::touch_selection::refresh(&ui);
         }
     });
     let a = app.clone();
@@ -1550,11 +1600,24 @@ fn android_action(app: &State, ui: &AppWindow, name: &str) -> bool {
             });
             Ok(())
         }
-        "export-html" | "export-pdf" => {
+        "export-html" | "export-pdf" | "export-txt" => {
             let a = app.borrow();
             let t = a.tab();
             let pdf = name == "export-pdf";
-            let ext = if pdf { "pdf" } else { "html" };
+            let format = if pdf {
+                worker::ExportFormat::Pdf
+            } else if name == "export-txt" {
+                worker::ExportFormat::Txt
+            } else {
+                worker::ExportFormat::Html
+            };
+            let ext = if pdf {
+                "pdf"
+            } else if name == "export-txt" {
+                "txt"
+            } else {
+                "html"
+            };
             let filename = format!("{}.{}", t.name.trim_end_matches(".md"), ext);
             let path = a.data.join(format!("export-{}.{}", t.id, ext));
             let snapshot = t.document.snapshot();
@@ -1566,7 +1629,7 @@ fn android_action(app: &State, ui: &AppWindow, name: &str) -> bool {
             let weak = ui.as_weak();
             std::thread::spawn(move || {
                 let result =
-                    worker::export(&snapshot.to_string(), &path, root, pdf).and_then(|_| {
+                    worker::export(&snapshot.to_string(), &path, root, format).and_then(|_| {
                         crate::android::call("saveCopy", &[&path.to_string_lossy(), &filename])
                             .map(|_| ())
                     });

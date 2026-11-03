@@ -4,6 +4,7 @@ mod controller;
 mod i18n;
 #[cfg(target_os = "macos")]
 mod macos_open;
+mod touch_selection;
 mod worker;
 use slint::ComponentHandle;
 slint::include_modules!();

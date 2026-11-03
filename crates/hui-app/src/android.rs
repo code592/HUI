@@ -184,6 +184,16 @@ pub extern "system" fn Java_dev_hui_markdown_HuiActivity_nativeDisplayProbe(
             let Some(ui) = weak.upgrade() else {
                 return;
             };
+            // Skia partial rendering otherwise returns only dirty tiles on repeated probes.
+            let size = ui.window().size().to_logical(ui.window().scale_factor());
+            let adapter = i_slint_core::window::WindowInner::from_pub(ui.window()).window_adapter();
+            adapter.renderer().mark_dirty_region(
+                i_slint_core::lengths::LogicalRect::new(
+                    i_slint_core::lengths::LogicalPoint::new(0., 0.),
+                    i_slint_core::lengths::LogicalSize::new(size.width, size.height),
+                )
+                .into(),
+            );
             let result = ui
                 .window()
                 .take_snapshot()
@@ -196,7 +206,6 @@ pub extern "system" fn Java_dev_hui_markdown_HuiActivity_nativeDisplayProbe(
                         pixels.as_bytes(),
                     )
                 });
-            let size = ui.window().size().to_logical(ui.window().scale_factor());
             let _ = send.send(
                 serde_json::json!({
                     "top": ui.get_mobile_safe_top(), "bottom": ui.get_mobile_safe_bottom(),
@@ -212,6 +221,92 @@ pub extern "system" fn Java_dev_hui_markdown_HuiActivity_nativeDisplayProbe(
     let value = receive
         .recv_timeout(std::time::Duration::from_secs(15))
         .unwrap_or_else(|e| serde_json::json!({"error": e.to_string()}).to_string());
+    env.new_string(value)
+        .map(|s| s.into_raw())
+        .unwrap_or(std::ptr::null_mut())
+}
+
+// Private, in-process test hook. Exercise the real Slint pointer event path, never
+// Android input injection. No Intent, document script or external command exposes it.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_hui_markdown_HuiActivity_nativeSelectionProbe(
+    mut env: JNIEnv,
+    _activity: JObject,
+    command: JString,
+) -> jni::sys::jstring {
+    let Ok(command) = env.get_string(&command).map(String::from) else {
+        return std::ptr::null_mut();
+    };
+    let (send, receive) = std::sync::mpsc::sync_channel(1);
+    let _ = slint::invoke_from_event_loop(move || {
+        UI.with(|slot| {
+            let slot = slot.borrow();
+            let Some((weak, _)) = slot.as_ref() else {
+                return;
+            };
+            let Some(ui) = weak.upgrade() else {
+                return;
+            };
+            let args: serde_json::Value = serde_json::from_str(&command).unwrap_or_default();
+            let position = slint::LogicalPosition::new(
+                args["x"].as_f64().unwrap_or(0.) as f32,
+                args["y"].as_f64().unwrap_or(0.) as f32,
+            );
+            use slint::platform::{PointerEventButton, WindowEvent};
+            match args["action"].as_str().unwrap_or("") {
+                "source" => ui.set_mode(0),
+                "reading" => ui.set_mode(3),
+                "down" => ui.window().dispatch_event(WindowEvent::PointerPressed {
+                    position,
+                    button: PointerEventButton::Left,
+                }),
+                "up" => ui.window().dispatch_event(WindowEvent::PointerReleased {
+                    position,
+                    button: PointerEventButton::Left,
+                }),
+                "move" => ui
+                    .window()
+                    .dispatch_event(WindowEvent::PointerMoved { position }),
+                "all" => {
+                    if ui.get_mode() == 3 {
+                        ui.invoke_select_reading(6, 0., 0.);
+                    } else {
+                        ui.invoke_touch_source(6, 0., 0.);
+                    }
+                }
+                "copy" => ui.invoke_action(
+                    if ui.get_mode() == 3 {
+                        "copy-reading"
+                    } else {
+                        "copy-source"
+                    }
+                    .into(),
+                ),
+                "export-txt" => ui.invoke_action("export-txt".into()),
+                "left" | "replace-all" => {
+                    let text: slint::SharedString = if args["action"] == "left" {
+                        slint::platform::Key::LeftArrow.into()
+                    } else {
+                        "Replacement".into()
+                    };
+                    ui.window()
+                        .dispatch_event(WindowEvent::KeyPressed { text: text.clone() });
+                    ui.window()
+                        .dispatch_event(WindowEvent::KeyReleased { text });
+                }
+                "undo" => ui.invoke_action("undo".into()),
+                _ => {}
+            }
+            let result = crate::touch_selection::probe_geometry(
+                &ui,
+                args["byte"].as_u64().unwrap_or(0) as usize,
+            );
+            let _ = send.send(result.to_string());
+        });
+    });
+    let value = receive
+        .recv_timeout(std::time::Duration::from_secs(15))
+        .unwrap_or_else(|e| serde_json::json!({"error":e.to_string()}).to_string());
     env.new_string(value)
         .map(|s| s.into_raw())
         .unwrap_or(std::ptr::null_mut())

@@ -25,6 +25,7 @@ public final class HuiActivity extends NativeActivity {
     private native void nativeEvent(String kind, String value);
     // Private instrumentation hook; no Intent or document can invoke it.
     private native String nativeDisplayProbe();
+    private native String nativeSelectionProbe(String command);
     private SharedPreferences mappings() { return getSharedPreferences("documents", MODE_PRIVATE); }
     @Override public void onCreate(Bundle state) {
         // Resources are versioned and installed before the Rust native entry point starts.
@@ -82,7 +83,7 @@ public final class HuiActivity extends NativeActivity {
             if (pendingCopy != null) { if (document) event("cancel-save", path); event("notice", "Finish the current Save As dialog first."); return; }
             pendingCopy = path; pendingDocument = document;
             Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
-                .setType(name.endsWith(".pdf") ? "application/pdf" : name.endsWith(".html") ? "text/html" : "text/markdown")
+                .setType(name.endsWith(".pdf") ? "application/pdf" : name.endsWith(".html") ? "text/html" : name.endsWith(".txt") ? "text/plain" : "text/markdown")
                 .putExtra(Intent.EXTRA_TITLE, name);
             startActivityForResult(intent, SAVE);
         }); return "";

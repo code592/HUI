@@ -137,5 +137,7 @@
   "存在未完成渲染，未导出": "Export abgebrochen: Darstellung unvollständig",
   "无效资源路径": "Ungültiger Ressourcenpfad",
   "字体路径无效": "Ungültiger Schriftpfad",
-  "已取消": "Abgebrochen"
+  "已取消": "Abgebrochen",
+  "导出 TXT": "TXT exportieren",
+  "导出 TXT…": "TXT exportieren…"
 }

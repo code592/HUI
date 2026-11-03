@@ -6,7 +6,7 @@ on:
         description: Platform to build
         type: choice
         default: all
-        options: [all, windows, linux, android]
+        options: [all, desktop, windows, linux, android]
   push:
     branches: ['codex/native-platforms']
     tags: ['build-*']
@@ -14,7 +14,7 @@ permissions:
   contents: read
 jobs:
   windows:
-    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'windows'
+    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'desktop' || inputs.platform == 'windows'
     runs-on: windows-2022
     strategy:
       fail-fast: false
@@ -43,6 +43,8 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force .build/ci | Out-Null
           $app = Join-Path $PWD 'dist/HUI-windows-x64/hui.exe'
+          python scripts/check-txt-export.py $app
+          if ($LASTEXITCODE -ne 0) { throw 'Full-document TXT export failed' }
           foreach ($format in @('png', 'pdf')) {
             $output = ".build/ci/windows-x64.$format"
             $process = Start-Process -FilePath $app -ArgumentList '--render','packaging/smoke/multilingual.md',$output -Wait -PassThru
@@ -59,6 +61,8 @@ jobs:
           $uiOutput = '.build/ci/windows-x64-ui.png'
           $process = Start-Process -FilePath $app -ArgumentList '--screenshot',$uiOutput,'split' -Wait -PassThru
           if ($process.ExitCode -ne 0 -or !(Test-Path $uiOutput)) { throw 'Native UI screenshot failed' }
+          $process = Start-Process -FilePath $app -ArgumentList '--screenshot','.build/ci/windows-x64-selection.png','source-selection' -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw 'Source selection screenshot failed' }
       - uses: actions/upload-artifact@v4
         with:
           name: HUI-windows-${{ matrix.arch }}
@@ -69,7 +73,7 @@ jobs:
           name: HUI-windows-x64-render-smoke
           path: .build/ci/windows-x64*
   linux:
-    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && (inputs.platform == 'all' || inputs.platform == 'linux'))
+    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && (inputs.platform == 'all' || inputs.platform == 'desktop' || inputs.platform == 'linux'))
     strategy:
       fail-fast: false
       matrix:
@@ -87,10 +91,17 @@ jobs:
           key: linux-${{ matrix.arch }}
       - run: bash scripts/package-linux.sh
       - run: bash scripts/check-linux-package.sh '${{ matrix.arch }}'
+      - run: |
+          python3 scripts/check-txt-export.py 'dist/HUI-linux-${{ matrix.arch }}/bin/hui'
+          HUI_DATA_DIR=/tmp/hui-package-check xvfb-run -a 'dist/HUI-linux-${{ matrix.arch }}/bin/hui' --screenshot '.build/cross/smoke-${{ matrix.arch }}/selection.png' source-selection
       - uses: actions/upload-artifact@v4
         with:
           name: HUI-linux-${{ matrix.arch }}
           path: dist/HUI-linux-${{ matrix.arch }}.tar.gz*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HUI-linux-${{ matrix.arch }}-render-smoke
+          path: .build/cross/smoke-${{ matrix.arch }}/
   android:
     if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && (inputs.platform == 'all' || inputs.platform == 'android'))
     runs-on: ubuntu-22.04

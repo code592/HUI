@@ -60,6 +60,11 @@ pub struct NativeDocument {
     pub scale: f32,
     inline_node: Option<blitz_traits::node_id::NodeId>,
     inline_resized: bool,
+    touch_roots: Vec<blitz_traits::node_id::NodeId>,
+    touch_selection: Option<(
+        (blitz_traits::node_id::NodeId, usize),
+        (blitz_traits::node_id::NodeId, usize),
+    )>,
 }
 
 #[derive(Clone, Debug)]
@@ -119,6 +124,8 @@ impl NativeDocument {
             scale,
             inline_node: None,
             inline_resized: false,
+            touch_selection: None,
+            touch_roots: Vec::new(),
         })
     }
     pub fn paint(&mut self, offset: u32) -> Vec<u8> {
@@ -262,16 +269,171 @@ impl NativeDocument {
         let rect = self.document.get_client_bounding_rect(self.inline_node?)?;
         Some((rect.x as f32, rect.y as f32, rect.width as f32))
     }
+    fn ensure_touch_roots(&mut self) {
+        if !self.touch_roots.is_empty() {
+            return;
+        }
+        let mut stack = vec![self.document.root_element().id];
+        while let Some(id) = stack.pop() {
+            let Some(node) = self.document.get_node(id) else {
+                continue;
+            };
+            if node.flags.is_inline_root() {
+                if node
+                    .element_data()
+                    .and_then(|e| e.inline_layout_data.as_ref())
+                    .is_some_and(|l| !l.text.is_empty())
+                {
+                    self.touch_roots.push(id);
+                }
+            } else {
+                let children = node.layout_children.borrow();
+                stack.extend(
+                    children
+                        .as_ref()
+                        .unwrap_or(&node.children)
+                        .iter()
+                        .rev()
+                        .copied(),
+                );
+            }
+        }
+    }
+    fn closest_text_position(
+        &mut self,
+        x: f32,
+        y: f32,
+    ) -> Option<(blitz_traits::node_id::NodeId, usize)> {
+        if let Some(hit) = self.document.find_text_position(x, y) {
+            return Some(hit);
+        }
+        self.ensure_touch_roots();
+        let viewport_y = y - self.document.viewport_scroll().y as f32;
+        let (id, rect) = self
+            .touch_roots
+            .iter()
+            .filter_map(|&id| {
+                let rect = self.document.get_client_bounding_rect(id)?;
+                let dx = (rect.x as f32 - x)
+                    .max(0.)
+                    .max(x - (rect.x + rect.width) as f32);
+                let dy = (rect.y as f32 - viewport_y)
+                    .max(0.)
+                    .max(viewport_y - (rect.y + rect.height) as f32);
+                Some((id, rect, dx * dx + dy * dy))
+            })
+            .min_by(|a, b| a.2.total_cmp(&b.2))
+            .map(|(id, rect, _)| (id, rect))?;
+        let node = self.document.get_node(id)?;
+        let layout = &node.element_data()?.inline_layout_data.as_ref()?.layout;
+        let edges = node.final_layout();
+        let cursor = parley::Cursor::from_point(
+            layout,
+            (x - rect.x as f32 - edges.border.left - edges.padding.left) * layout.scale(),
+            (viewport_y - rect.y as f32 - edges.border.top - edges.padding.top) * layout.scale(),
+        );
+        Some((id, cursor.index()))
+    }
     pub fn select_at(&mut self, phase: i32, x: f32, y: f32) {
         let y = y + self.document.viewport_scroll().y as f32;
-        if phase == 0 {
-            self.document.clear_text_selection();
-            if let Some((node, offset)) = self.document.find_text_position(x, y) {
-                self.document.set_text_selection(node, offset, node, offset);
+        match phase {
+            7 => {
+                self.document.clear_text_selection();
+                self.touch_selection = None;
             }
-        } else {
-            self.document.extend_text_selection_to_point(x, y);
+            6 => {
+                let mut roots = Vec::new();
+                let mut stack = vec![self.document.root_element().id];
+                while let Some(id) = stack.pop() {
+                    let Some(node) = self.document.get_node(id) else {
+                        continue;
+                    };
+                    if node.flags.is_inline_root() {
+                        if let Some(layout) = node
+                            .element_data()
+                            .and_then(|e| e.inline_layout_data.as_ref())
+                            && !layout.text.is_empty()
+                        {
+                            roots.push((id, layout.text.len()));
+                        }
+                    } else {
+                        let children = node.layout_children.borrow();
+                        stack.extend(
+                            children
+                                .as_ref()
+                                .unwrap_or(&node.children)
+                                .iter()
+                                .rev()
+                                .copied(),
+                        );
+                    }
+                }
+                self.touch_selection = roots.first().zip(roots.last()).map(|(a, b)| ((a.0, 0), *b));
+            }
+            3 => {
+                self.touch_selection =
+                    self.document
+                        .find_text_position(x, y)
+                        .and_then(|(id, byte)| {
+                            let text = &self
+                                .document
+                                .get_node(id)?
+                                .element_data()?
+                                .inline_layout_data
+                                .as_ref()?
+                                .text;
+                            let word = hui_core::text_selection::word_at(text, byte);
+                            Some(((id, word.start), (id, word.end)))
+                        });
+                self.document.clear_text_selection();
+            }
+            4 | 5 => {
+                if let Some(hit) = self.closest_text_position(x, y)
+                    && let Some((a, b)) = self.touch_selection.as_mut()
+                {
+                    if phase == 4 {
+                        *a = hit;
+                    } else {
+                        *b = hit;
+                    }
+                }
+            }
+            0 => {
+                self.touch_selection = None;
+                self.document.clear_text_selection();
+                if let Some((node, offset)) = self.document.find_text_position(x, y) {
+                    self.document.set_text_selection(node, offset, node, offset);
+                }
+            }
+            _ => {
+                self.document.extend_text_selection_to_point(x, y);
+            }
         }
+        if let Some(((a, ai), (b, bi))) = self.touch_selection {
+            self.document.set_text_selection(a, ai, b, bi);
+        }
+    }
+    /// Both logical endpoints in viewport CSS pixels, using the exact painted layout.
+    pub fn selection_handles(&self) -> Option<[(f32, f32); 2]> {
+        use parley::{Affinity, Cursor};
+        let (a, b) = self.touch_selection?;
+        if a == b {
+            return None;
+        }
+        let point = |(id, byte)| -> Option<(f32, f32)> {
+            let node = self.document.get_node(id)?;
+            let layout = &node.element_data()?.inline_layout_data.as_ref()?.layout;
+            let rect = self.document.get_client_bounding_rect(id)?;
+            let caret =
+                Cursor::from_byte_index(layout, byte, Affinity::Downstream).geometry(layout, 1.);
+            let scale = layout.scale();
+            let edges = node.final_layout();
+            Some((
+                rect.x as f32 + edges.border.left + edges.padding.left + caret.x0 as f32 / scale,
+                rect.y as f32 + edges.border.top + edges.padding.top + caret.y1 as f32 / scale,
+            ))
+        };
+        Some([point(a)?, point(b)?])
     }
     pub fn selected_text(&self) -> Option<String> {
         // Preserve paragraph boundaries; Blitz's default accessor joins every inline root with a space.
@@ -683,6 +845,59 @@ mod tests {
                 .count()
                 > 1000
         );
+    }
+    #[test]
+    fn touch_word_handles_cross_blocks_and_select_all_after_scroll() {
+        let html = "<html><style>body{margin:20px;font:18px sans-serif} p{margin:24px 0}</style><body><p>Alpha 中文 first paragraph</p><p>Beta second paragraph</p><p>Last 👩‍💻 café</p></body></html>";
+        let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../vendor/katex");
+        for scale in [1., 2.625] {
+            let mut native = NativeDocument::new(
+                html,
+                None,
+                assets.clone(),
+                (400. * scale) as u32,
+                (300. * scale) as u32,
+                scale,
+                false,
+            )
+            .unwrap();
+            let ids = native.document.query_selector_all("p").unwrap();
+            let a = native.document.get_client_bounding_rect(ids[0]).unwrap();
+            let b = native.document.get_client_bounding_rect(ids[1]).unwrap();
+            native.select_at(3, a.x as f32 + 4., a.y as f32 + 9.);
+            assert_eq!(native.selected_text().as_deref(), Some("Alpha"));
+            let handles = native.selection_handles().unwrap();
+            assert!(handles[0].0 < handles[1].0);
+            assert!((handles[0].0 - a.x as f32).abs() < 2.);
+            // Fingers frequently land in paragraph spacing. Snap to the nearest
+            // native text caret instead of freezing the previous selection.
+            native.select_at(5, b.x as f32 + 100., (b.y + b.height + 1.) as f32);
+            assert!(native.selected_text().unwrap().contains("Beta"));
+            native.select_at(5, (b.x + b.width - 2.) as f32, b.y as f32 + 9.);
+            assert!(
+                native
+                    .selected_text()
+                    .unwrap()
+                    .contains("paragraph\n\nBeta second paragraph")
+            );
+            native.select_at(4, b.x as f32 + 1., b.y as f32 + 9.);
+            assert_eq!(
+                native.selected_text().as_deref(),
+                Some("Beta second paragraph")
+            );
+            native.select_at(6, 0., 0.);
+            let all = native.selected_text().unwrap();
+            assert!(all.starts_with("Alpha 中文"));
+            assert!(all.ends_with("Last 👩‍💻 café"));
+            let before = native.selection_handles().unwrap();
+            native.paint((30. * scale) as u32);
+            let after = native.selection_handles().unwrap();
+            assert!((before[0].1 - after[0].1 - 30.).abs() < 1.);
+            assert_eq!(all, native.selected_text().unwrap());
+            native.select_at(7, 0., 0.);
+            assert!(native.selected_text().is_none());
+            assert!(native.selection_handles().is_none());
+        }
     }
     #[test]
     fn reading_selection_crosses_paragraphs_and_paints_highlight() {

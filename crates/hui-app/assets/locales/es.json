@@ -137,5 +137,7 @@
   "存在未完成渲染，未导出": "Exportación detenida: representación incompleta",
   "无效资源路径": "Ruta de recurso inválida",
   "字体路径无效": "Ruta de fuente inválida",
-  "已取消": "Cancelado"
+  "已取消": "Cancelado",
+  "导出 TXT": "Exportar TXT",
+  "导出 TXT…": "Exportar TXT…"
 }

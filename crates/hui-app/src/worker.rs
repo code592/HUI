@@ -466,6 +466,7 @@ impl Renderer {
                         let (width, height) = (d.width, d.height);
                         let scale = d.scale;
                         let inline_rect = d.inline_rect();
+                        let handles = d.selection_handles();
                         let check = serial.clone();
                         let generation = current_generation;
                         let _ = ui.upgrade_in_event_loop(move |ui| {
@@ -485,6 +486,9 @@ impl Renderer {
                             if let Some((x,y,w)) = inline_rect {
                                 ui.set_inline_x(x); ui.set_inline_y(y); ui.set_inline_width(w);
                             }
+                            ui.set_reading_selection(handles.map(|p| crate::TouchSelection {
+                                active: true, ax: p[0].0, ay: p[0].1, bx: p[1].0, by: p[1].1,
+                            }).unwrap_or_default());
                             ui.set_preview_max(max);
                             ui.set_preview_position(offset);
                             ui.set_busy(false);
@@ -597,7 +601,24 @@ fn blitz_point_zero() -> hui_render::native::Point<f64> {
     hui_render::native::Point { x: 0., y: 0. }
 }
 
-pub fn export(source: &str, path: &Path, root: Option<PathBuf>, pdf: bool) -> anyhow::Result<()> {
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ExportFormat {
+    Html,
+    Pdf,
+    Txt,
+}
+
+pub fn export(
+    source: &str,
+    path: &Path,
+    root: Option<PathBuf>,
+    format: ExportFormat,
+) -> anyhow::Result<()> {
+    if format == ExportFormat::Txt {
+        let text = hui_render::plain_text::from_markdown(source);
+        hui_core::LocalStorage::save(path, &Rope::from_str(&text), None)?;
+        return Ok(());
+    }
     let mut engine = MarkdownEngine::new()?;
     engine.set_translator(tr);
     let result = engine.render(source, false, &Arc::new(AtomicBool::new(false)))?;
@@ -608,7 +629,7 @@ pub fn export(source: &str, path: &Path, root: Option<PathBuf>, pdf: bool) -> an
             result.diagnostics.join("; ")
         );
     }
-    if pdf {
+    if format == ExportFormat::Pdf {
         let html = wrap_html(&result.html, 0, 10.5, 510., &katex_css(&assets())?);
         hui_render::native::export_pdf(&html, path, root, assets())?;
     } else {
@@ -634,17 +655,27 @@ pub fn export(source: &str, path: &Path, root: Option<PathBuf>, pdf: bool) -> an
 
 pub fn render_cli(args: &[String]) -> anyhow::Result<()> {
     if args.len() < 2 {
-        anyhow::bail!("用法: hui --render input.md output.png|output.html|output.pdf [dark|paper]");
+        anyhow::bail!(
+            "用法: hui --render input.md output.png|output.html|output.pdf|output.txt [dark|paper]"
+        );
     }
     let path = PathBuf::from(&args[0]);
     let output = PathBuf::from(&args[1]);
     let source = std::fs::read_to_string(&path)?;
     let root = path.canonicalize()?.parent().map(Path::to_path_buf);
-    if output
+    let extension = output
         .extension()
-        .is_some_and(|s| s == "pdf" || s == "html")
-    {
-        return export(&source, &output, root, output.extension().unwrap() == "pdf");
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let format = match extension.as_str() {
+        "txt" => Some(ExportFormat::Txt),
+        "html" => Some(ExportFormat::Html),
+        "pdf" => Some(ExportFormat::Pdf),
+        _ => None,
+    };
+    if let Some(format) = format {
+        return export(&source, &output, root, format);
     }
     let mut engine = MarkdownEngine::new()?;
     engine.set_translator(tr);

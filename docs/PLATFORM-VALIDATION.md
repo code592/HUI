@@ -45,3 +45,24 @@ adb -s emulator-5560 shell 'HUI_RENDER_TEST_ASSETS=/data/local/tmp HUI_RENDER_TE
 ```
 
 这些图表测试仅使用内嵌 SVG；`HUI_RENDER_TEST_ASSETS` 指向存在的测试目录，避免使用编译机的资源路径。`HUI_RENDER_TEST_OUTPUT` 可选，用于保存各图表的原生排版 PNG。
+
+## Android 触控选择和 TXT（2026-11-03，版本码 5）
+
+- 11 项核心测试、21 项渲染测试通过；包含多语言词/字素边界、段落空隙拖选、两种缩放下的手柄位置与滚动、全文选择及 TXT 输出。
+- 工作区 Clippy、Android 目标 Clippy 均以 `-D warnings` 通过；九种语言各 141 个键通过目录校验。
+- API 36 / ARM64 / 16 KiB 模拟器内，Instrumentation 驱动真实 Slint 窗口指针事件，验证阅读和编辑长按、手柄跨段/跨行拖动及 Unicode 复制。
+- 大于初始 8192 字符窗口的测试文档验证全文复制、光标导航取消全选、全选后替换与撤销，不丢失屏外原文。
+- TXT 经过实际导出工作线程、`text/plain` 系统创建文档 Intent 和隔离测试 Provider 回调，验证尾部标记及中文、emoji、组合字符。
+- 原有原生初始化、字体/安全区、URI 导入、规范路径写回、Unicode/CRLF、外部冲突、只读与权限撤销测试仍通过。阅读/源码选区 PNG 由应用自身排版绘制后导出，并非系统屏幕截图。
+
+此项不代表 Android 10、实体设备、全部输入法或连续跨源码窗口拖选已完成验收。普通拖选仍受当前源码窗口/即时块边界限制，全文全选和 TXT 导出覆盖整份文档。
+
+## macOS TXT 更新包（2026-11-03，0.2.0 构建 4）
+
+- Apple Silicon ARM64 Release 应用与 DMG 已重新构建，包含 UTF-8 TXT 导出、选区修复和现有 Mermaid 支持。
+- 原生“文件 → 导出 TXT…”保存面板实际导出成功；12,618 字符、618 行测试文档包含九种语言、emoji、组合字符和屏外尾部标记，与命令行导出逐字节一致。
+- 命令行 `.txt` / `.TXT` 输出一致；TXT 不依赖公式或图表排版，即使 Mermaid 语法错误也保留其代码文本。菜单导出使用显式格式，避免被文件名后缀改变。
+- `cargo check`、应用全部目标 Clippy（`-D warnings`）、九语言 141 键检查通过；最终应用的 Mermaid HTML/PDF 导出与原生源码选区快照通过。
+- 严格签名、Info.plist、图标、Markdown 文件关联及 DMG 校验通过。只读挂载后的可执行文件与交付应用一致，Applications 链接正确；测试副本及挂载已关闭。
+
+本包由当前未提交工作区构建，来源及校验值见 `dist/BUILD-INFO.json`。部署目标为 macOS 12.0，最低版本与 Intel 未实测；使用本地临时签名，未做 Apple 公证。Windows/Linux 和 Android 安装包未在本次 macOS 打包中重新生成。

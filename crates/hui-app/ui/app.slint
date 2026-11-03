@@ -22,6 +22,94 @@ export struct FileRow { label: string, detail: string, folder: bool, depth: int 
 export struct TabRow { label: string, dirty: bool }
 export struct HeadingRow { label: string, level: int, offset: int }
 
+export struct TouchSelection { active: bool, ax: float, ay: float, bx: float, by: float }
+
+// One-shot long press. Movement cancels the timer before scrolling; no idle timer.
+component TextGesture inherits Rectangle {
+    callback gesture(int, float, float);
+    callback scroll(float);
+    in property <bool> tap-enabled: true;
+    private property <bool> waiting;
+    private property <bool> held;
+    private property <bool> moved-far;
+    private property <length> last-y;
+    in property <length> scroll-offset;
+    Timer { interval: 450ms; running: root.waiting;
+        triggered => { root.waiting = false; root.held = true; root.gesture(3, touch.pressed-x / 1px, touch.pressed-y / 1px); }
+    }
+    touch := TouchArea {
+        pointer-event(event) => {
+            if event.kind == PointerEventKind.down {
+                root.waiting = true; root.held = false; root.moved-far = false; root.last-y = self.mouse-y + root.scroll-offset;
+            }
+            if event.kind == PointerEventKind.up {
+                root.waiting = false;
+                if !root.held && !root.moved-far && root.tap-enabled { root.gesture(0, self.mouse-x / 1px, self.mouse-y / 1px); }
+            }
+            if event.kind == PointerEventKind.cancel { root.waiting = false; root.held = false; }
+        }
+        moved => { if self.pressed {
+            if abs(self.mouse-x - self.pressed-x) + abs(self.mouse-y - self.pressed-y) > 8px { root.waiting = false; root.moved-far = true; }
+            if root.held { root.gesture(5, self.mouse-x / 1px, self.mouse-y / 1px); }
+            else if root.moved-far { root.scroll((root.last-y - self.mouse-y - root.scroll-offset) / 1px); }
+            root.last-y = self.mouse-y + root.scroll-offset;
+        } }
+        scroll-event(event) => { root.scroll(-event.delta-y / 1px); return accept; }
+    }
+}
+component SelectionHandle inherits Rectangle {
+    in property <float> point-x;
+    in property <float> point-y;
+    in property <length> available-width;
+    callback dragged(float, float);
+    callback drag-state(bool);
+    x: clamp(point-x * 1px - 22px, 0px, max(0px, available-width - 44px)); y: point-y * 1px - 4px;
+    width: 44px; height: 44px;
+    Rectangle { x: clamp(root.point-x * 1px - root.x, 1px, 43px); y: 0px; width: 2px; height: 10px; background: Design.accent; }
+    Rectangle { x: clamp(root.point-x * 1px - root.x - 9px, 0px, 26px); y: 8px; width: 18px; height: 18px; border-radius: 9px; background: Design.accent; }
+    TouchArea {
+        changed pressed => { root.drag-state(self.pressed); }
+        private property <length> dx;
+        private property <length> dy;
+        pointer-event(event) => { if event.kind == PointerEventKind.down {
+            self.dx = root.point-x * 1px - root.x - self.mouse-x;
+            self.dy = root.point-y * 1px - root.y - self.mouse-y;
+        } }
+        moved => { if self.pressed { root.dragged((root.x + self.mouse-x + self.dx) / 1px, (root.y + self.mouse-y + self.dy - 6px) / 1px); } }
+    }
+}
+component SelectionHandles inherits Rectangle {
+    in property <TouchSelection> selection;
+    in property <length> viewport-offset;
+    in property <length> viewport-height: root.height;
+    callback gesture(int, float, float);
+    callback scroll(float);
+    private property <bool> dragging;
+    private property <int> phase;
+    private property <float> finger-x;
+    private property <length> finger-y;
+    private property <float> edge-speed: finger-y < 24px ? -8 : finger-y > viewport-height - 24px ? 8 : 0;
+    function move-handle(p: int, x: float, y: float) {
+        root.phase = p; root.finger-x = x; root.finger-y = y * 1px + root.viewport-offset;
+        root.gesture(p,x,y);
+    }
+    Timer { interval: 50ms; running: root.dragging && root.edge-speed != 0;
+        triggered => {
+            root.scroll(root.edge-speed);
+            root.gesture(root.phase,root.finger-x,(root.finger-y - root.viewport-offset) / 1px);
+        }
+    }
+    SelectionHandle {
+        visible: root.selection.active; available-width: root.width; point-x: root.selection.ax; point-y: root.selection.ay;
+        dragged(x,y) => { root.move-handle(4,x,y); }
+        drag-state(active) => { root.dragging = active; if active { root.move-handle(4,root.selection.ax,root.selection.ay - 6); } }
+    }
+    SelectionHandle {
+        visible: root.selection.active; available-width: root.width; point-x: root.selection.bx; point-y: root.selection.by;
+        dragged(x,y) => { root.move-handle(5,x,y); }
+        drag-state(active) => { root.dragging = active; if active { root.move-handle(5,root.selection.bx,root.selection.by - 6); } }
+    }
+}
 component Action inherits Rectangle {
     in property <string> label;
     in property <string> hint: label;
@@ -92,7 +180,8 @@ component ScrollView inherits Rectangle {
     in-out property <length> viewport-y <=> flick.viewport-y;
     min-height: 50px; min-width: 50px;
     horizontal-stretch: 1; vertical-stretch: 1;
-    flick := Flickable { interactive: Design.mobile; @children }
+    in property <bool> interactive: Design.mobile;
+    flick := Flickable { interactive: root.interactive; @children }
     ThinScrollBar {
         x: parent.width - self.width; height: parent.height;
         maximum: max(0, (root.viewport-height - root.height) / 1px);
@@ -107,7 +196,8 @@ component InlineScrollView inherits Rectangle {
     in-out property <length> viewport-width <=> flick.viewport-width;
     in-out property <length> viewport-height <=> flick.viewport-height;
     in-out property <length> viewport-y <=> flick.viewport-y;
-    flick := Flickable { interactive: Design.mobile; @children }
+    in property <bool> interactive: Design.mobile;
+    flick := Flickable { interactive: root.interactive; @children }
     ThinScrollBar {
         x: parent.width - self.width; height: parent.height;
         maximum: max(0, (root.viewport-height - root.height) / 1px);
@@ -219,6 +309,14 @@ export component AppWindow inherits Window {
     callback format(string);
     callback shortcut(string, bool) -> bool;
     callback select-reading(int, float, float);
+    callback touch-source(int, float, float);
+    callback refresh-touch-source();
+    in-out property <TouchSelection> edit-selection;
+    in-out property <bool> source-all-selected;
+    in-out property <string> all-selected-source;
+    in property <TouchSelection> reading-selection;
+    changed source-cursor => { root.refresh-touch-source(); }
+    changed source-anchor => { root.refresh-touch-source(); }
     callback copy-ready(string);
     callback save-finished(string, string, string);
     callback search-finished(string, string, string, bool);
@@ -236,7 +334,8 @@ export component AppWindow inherits Window {
         else { input.set-selection-offsets(start, end); input.focus(); }
     }
     public function select-all-source() {
-        if root.mode == 2 && root.editor-active { inline-input.select-all(); inline-input.focus(); }
+        if root.mobile { root.touch-source(6,0,0); }
+        else if root.mode == 2 && root.editor-active { inline-input.select-all(); inline-input.focus(); }
         else if root.show-source { input.select-all(); input.focus(); }
     }
     public function finish-inline() { root.editor-active = false; reader-focus.focus(); root.action("finish-inline"); }
@@ -253,6 +352,7 @@ export component AppWindow inherits Window {
             MenuItem { title: I18n.translate("关闭全部文件", I18n.locale); shortcut: @keys(Control + Alt + W); activated => { root.action("close-all"); } }
             MenuSeparator {}
             MenuItem { title: I18n.translate("导出 HTML…", I18n.locale); activated => { root.action("export-html"); } }
+            MenuItem { title: I18n.translate("导出 TXT…", I18n.locale); activated => { root.action("export-txt"); } }
             MenuItem { title: I18n.translate("导出 PDF…", I18n.locale); activated => { root.action("export-pdf"); } }
         }
         Menu { title: I18n.translate("编辑", I18n.locale);
@@ -292,7 +392,7 @@ export component AppWindow inherits Window {
 
     changed preview-width => { root.resize-preview(); }
     changed preview-height => { root.resize-preview(); }
-    changed mode => { if root.mode == 3 || root.mode == 2 { reader-focus.focus(); } root.action("mode-change"); }
+    changed mode => { root.source-all-selected = false; root.edit-selection = {active:false}; root.select-reading(7,0,0); if root.mode == 3 || root.mode == 2 { reader-focus.focus(); } root.action("mode-change"); }
 
     Rectangle {
     x: root.safe-left; y: root.safe-top;
@@ -426,7 +526,8 @@ export component AppWindow inherits Window {
                                         }
                                     }
                                     viewport-width: self.visible-width;
-                                    viewport-height: input.height;
+                                    viewport-height: input.height + (root.mobile ? 32px : 0px);
+                                    interactive: false;
                                     
                                     source-menu := ContextMenuArea {
     Menu {
@@ -455,6 +556,7 @@ export component AppWindow inherits Window {
                                         accessible-role: none;
                                     }
                                     input := TextInput {
+                                        accessible-label: "HUI source";
                                         x: max(0px, (source-scroll.visible-width - 860px) / 2); y: 0px;
                                         text <=> root.source;
                                         width: max(1px, min(860px, source-scroll.visible-width - 16px));
@@ -477,6 +579,19 @@ export component AppWindow inherits Window {
                                             if self.has-focus && pos.y + source-scroll.viewport-y > source-scroll.visible-height - 32px { source-scroll.viewport-y = source-scroll.visible-height - pos.y - 32px; }
                                             if self.has-focus && pos.y + source-scroll.viewport-y < 0px { source-scroll.viewport-y = -pos.y; }
                                         }
+                                    }
+                                    if root.mobile: TextGesture {
+                                        x: input.x; y: input.y; width: input.width; height: input.height;
+                                        scroll-offset: source-scroll.viewport-y;
+                                        gesture(phase,x,y) => { root.touch-source(phase,x,y); }
+                                        scroll(delta) => { source-scroll.viewport-y = clamp(source-scroll.viewport-y - delta * 1px, min(0px,source-scroll.visible-height - source-scroll.viewport-height),0px); }
+                                    }
+                                    if root.mobile: SelectionHandles {
+                                        x: input.x; y: input.y; width: input.width; height: input.height;
+                                        selection: root.edit-selection;
+                                        viewport-offset: source-scroll.viewport-y; viewport-height: source-scroll.visible-height;
+                                        scroll(delta) => { source-scroll.viewport-y = clamp(source-scroll.viewport-y - delta * 1px,min(0px,source-scroll.visible-height - source-scroll.viewport-height),0px); }
+                                        gesture(phase,x,y) => { root.touch-source(phase,x,y); }
                                     }
                                     Rectangle {
                                         visible: input.has-focus && input.preedit-text == "" && !root.source-has-selection;
@@ -525,6 +640,7 @@ export component AppWindow inherits Window {
                                     MenuItem { title: I18n.translate("排版设置…", I18n.locale); activated => { root.settings-visible = true; } }
                                 }
                             read-touch := TouchArea {
+                                enabled: !root.mobile;
                                 private property <length> last-touch-y;
                                 mouse-cursor: root.mobile ? default : text;
                                 scroll-event(event) => { root.scroll-preview(-event.delta-y / 1px); return accept; }
@@ -541,6 +657,25 @@ export component AppWindow inherits Window {
                                 moved => { if self.pressed && root.mode != 2 { if root.mobile { root.scroll-preview((self.last-touch-y - self.mouse-y) / 1px); self.last-touch-y = self.mouse-y; } else { root.select-reading(1, self.mouse-x / 1px, self.mouse-y / 1px); } } }
                                 clicked => { if root.mode == 2 { root.open-inline(self.mouse-x / 1px, self.mouse-y / 1px); } }
                             }
+                            }
+                            if root.mobile: TextGesture {
+                                accessible-role: text; accessible-label: "HUI reading surface";
+                                gesture(phase,x,y) => {
+                                    if phase == 0 {
+                                        root.select-reading(7,0,0);
+                                        if root.mode == 2 { root.open-inline(x,y); }
+                                    } else {
+                                        if phase == 3 && root.editor-active { root.finish-inline(); }
+                                        root.edit-selection = {active:false}; root.source-all-selected = false;
+                                        root.select-reading(phase,x,y);
+                                    }
+                                }
+                                scroll(delta) => { root.scroll-preview(delta); }
+                            }
+                            if root.mobile: SelectionHandles {
+                                selection: root.reading-selection;
+                                scroll(delta) => { root.scroll-preview(delta); }
+                                gesture(phase,x,y) => { root.select-reading(phase,x,y); }
                             }
                             inline-editor := Rectangle {
                                 visible: root.mode == 2 && root.editor-active;
@@ -578,10 +713,12 @@ export component AppWindow inherits Window {
     }
 
                                     inline-scroll := InlineScrollView {
+                                        interactive: false;
                                         width: parent.width; height: parent.height;
                                         viewport-width: self.visible-width;
                                         viewport-height: max(self.visible-height, inline-input.preferred-height);
                                         inline-input := TextInput {
+                                            accessible-label: "HUI inline source";
                                             text <=> root.source;
                                             width: max(1px, inline-scroll.visible-width - 10px); height: self.preferred-height;
                                             single-line: false;
@@ -601,6 +738,19 @@ export component AppWindow inherits Window {
                                                 }
                                                 if self.has-focus && pos.y + inline-scroll.viewport-y < 0px { inline-scroll.viewport-y = -pos.y; }
                                             }
+                                        }
+                                        if root.mobile: TextGesture {
+                                            width: inline-input.width; height: max(inline-input.height,inline-scroll.visible-height);
+                                            scroll-offset: inline-scroll.viewport-y;
+                                            gesture(phase,x,y) => { root.touch-source(phase,x,y); }
+                                            scroll(delta) => { inline-scroll.viewport-y = clamp(inline-scroll.viewport-y - delta * 1px,min(0px,inline-scroll.visible-height - inline-scroll.viewport-height),0px); }
+                                        }
+                                        if root.mobile: SelectionHandles {
+                                            width: inline-input.width; height: inline-input.height;
+                                            selection: root.edit-selection;
+                                            viewport-offset: inline-scroll.viewport-y; viewport-height: inline-scroll.visible-height;
+                                            scroll(delta) => { inline-scroll.viewport-y = clamp(inline-scroll.viewport-y - delta * 1px,min(0px,inline-scroll.visible-height - inline-scroll.viewport-height),0px); }
+                                            gesture(phase,x,y) => { root.touch-source(phase,x,y); }
                                         }
                                     }
                                 }
@@ -688,6 +838,18 @@ export component AppWindow inherits Window {
             }
         }
     }
+    if root.mobile && (root.edit-selection.active || root.reading-selection.active): Rectangle {
+        x: max(8px,(parent.width - self.width) / 2); y: max(0px,parent.height - 104px);
+        width: min(320px,parent.width - 16px); height: 48px;
+        background: Design.panel; border-color: Design.line; border-width: 1px; border-radius: 8px;
+        HorizontalLayout { padding: 2px; spacing: 2px;
+            Action { horizontal-stretch: 1; label: I18n.translate("复制", I18n.locale); triggered => { root.action(root.edit-selection.active ? "copy-source" : "copy-reading"); } }
+            if root.edit-selection.active: Action { horizontal-stretch: 1; label: I18n.translate("剪切", I18n.locale); triggered => { root.action("cut-source"); } }
+            if root.edit-selection.active: Action { horizontal-stretch: 1; label: I18n.translate("粘贴", I18n.locale); triggered => { root.action("paste-source"); } }
+            Action { horizontal-stretch: 1; label: I18n.translate("全选", I18n.locale); triggered => { if root.edit-selection.active { root.touch-source(6,0,0); } else { root.select-reading(6,0,0); } } }
+            Action { label: "×"; triggered => { if root.edit-selection.active { root.touch-source(7,0,0); } root.select-reading(7,0,0); } }
+        }
+    }
     if root.notice != "": Rectangle {
         x: max(12px, (root.content-width - 560px) / 2); y: root.content-height - 92px;
         width: min(560px, root.content-width - 24px); height: 48px;
@@ -741,6 +903,7 @@ export component AppWindow inherits Window {
                     if root.mobile: Action { label: I18n.translate("查找与替换", I18n.locale); triggered => { root.commands-visible = false; root.search-visible = !root.search-visible; } }
                     Action { has-icon: true; label: I18n.translate("另存为…", I18n.locale); icon: @image-url("icons/save.svg"); triggered => { root.commands-visible = false; root.action("save-as"); } }
                     Action { has-icon: true; label: I18n.translate("导出 HTML", I18n.locale); icon: @image-url("icons/export.svg"); triggered => { root.commands-visible = false; root.action("export-html"); } }
+                    Action { has-icon: true; label: I18n.translate("导出 TXT", I18n.locale); icon: @image-url("icons/export.svg"); triggered => { root.commands-visible = false; root.action("export-txt"); } }
                     Action { has-icon: true; label: I18n.translate("导出 PDF", I18n.locale); icon: @image-url("icons/export.svg"); triggered => { root.commands-visible = false; root.action("export-pdf"); } }
                     Action { label: I18n.translate("撤销  ·  Ctrl/Cmd Z", I18n.locale); triggered => { root.action("undo"); } }
                     Action { label: I18n.translate("重做  ·  Ctrl/Cmd Y", I18n.locale); triggered => { root.action("redo"); } }

@@ -14,6 +14,8 @@ name = "hui_app"
 crate-type = ["rlib"]
 
 [dependencies]
+# Pinned adapter for native text hit-testing/handle geometry; no duplicate text layout.
+i-slint-core = { version = "=1.17.1", default-features = false }
 hui-core = { path = "../hui-core" }
 hui-render = { path = "../hui-render" }
 slint = { version = "=1.17.1", default-features = false, features = ["std", "renderer-software", "compat-1-2"] }

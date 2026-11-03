@@ -5,8 +5,11 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+hui-core = { path = "../hui-core" }
+parley = "=0.11.1"
 pulldown-cmark = "0.13"
 ammonia = "4"
+html-escape = "=0.2.15"
 syntect = { version = "5.3", default-features = false, features = ["default-fancy"] }
 merman = "=0.8.0-alpha.6"
 rquickjs = "=0.12.2"

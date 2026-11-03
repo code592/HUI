@@ -21,6 +21,121 @@ public final class SmokeInstrumentation extends Instrumentation {
     private static void write(File file, byte[] bytes) throws Exception { try (OutputStream out = new FileOutputStream(file)) { out.write(bytes); } }
     private byte[] read(Uri uri) throws Exception { try (InputStream in = getTargetContext().getContentResolver().openInputStream(uri)) { return in.readAllBytes(); } }
     private void write(Uri uri, byte[] bytes) throws Exception { try (OutputStream out = getTargetContext().getContentResolver().openOutputStream(uri, "wt")) { out.write(bytes); } }
+    private java.lang.reflect.Method selectionProbe;
+    private org.json.JSONObject selection(HuiActivity activity, String action, double x, double y, int offset) throws Exception {
+        org.json.JSONObject request = new org.json.JSONObject();
+        request.put("action", action); request.put("x",x); request.put("y",y); request.put("byte",offset);
+        org.json.JSONObject value = new org.json.JSONObject((String) selectionProbe.invoke(activity,request.toString()));
+        check(!value.has("error"),"Selection probe: " + value);
+        return value;
+    }
+    private org.json.JSONObject selection(HuiActivity activity, String action) throws Exception { return selection(activity,action,0,0,0); }
+    private void longPress(HuiActivity activity, org.json.JSONObject point) throws Exception {
+        double x=point.getDouble("x"), y=point.getDouble("y");
+        selection(activity,"move",x,y,0);
+        selection(activity,"down",x,y,0); android.os.SystemClock.sleep(650);
+        selection(activity,"up",x,y,0); android.os.SystemClock.sleep(400);
+    }
+    private void snapshot(HuiActivity activity, Bundle result, String name) throws Exception {
+        java.lang.reflect.Method probe = HuiActivity.class.getDeclaredMethod("nativeDisplayProbe"); probe.setAccessible(true);
+        org.json.JSONObject display = new org.json.JSONObject((String)probe.invoke(activity));
+        check(display.getBoolean("snapshot"),"Selection snapshot failed");
+        File artifact = new File(getTargetContext().getExternalFilesDir(null),name+".png");
+        java.nio.file.Files.copy(new File(getTargetContext().getFilesDir(),"display-probe.png").toPath(),artifact.toPath(),java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        String image=android.util.Base64.encodeToString(java.nio.file.Files.readAllBytes(artifact.toPath()),android.util.Base64.NO_WRAP);
+        for(int start=0,index=0;start<image.length();start+=100000,index++) {
+            Bundle part=new Bundle(); part.putString("image-"+name+"-"+String.format(java.util.Locale.ROOT,"%04d",index),image.substring(start,Math.min(start+100000,image.length())));
+            sendStatus(0,part);
+        }
+    }
+    private void selectionTests(HuiActivity activity, Bundle result) throws Exception {
+        selectionProbe = HuiActivity.class.getDeclaredMethod("nativeSelectionProbe",String.class); selectionProbe.setAccessible(true);
+        java.lang.reflect.Method event = HuiActivity.class.getDeclaredMethod("nativeEvent",String.class,String.class); event.setAccessible(true);
+        File fixture = new File(getTargetContext().getFilesDir(),"touch-selection.md");
+        String content = "Alpha 中文 👩‍💻 café\n\nBeta second paragraph\n\n";
+        StringBuilder large = new StringBuilder(content);
+        for (int i=0;i<240;i++) large.append("日本語 한국어 Русский Español paragraph ").append(i).append("\n\n");
+        large.append("LAST_DOCUMENT_MARKER\n");
+        write(fixture,bytes(large.toString()));
+        event.invoke(activity,"open",fixture.getAbsolutePath()); android.os.SystemClock.sleep(2500);
+        longPress(activity,selection(activity,"state"));
+        check(selection(activity,"state").getBoolean("active"),"Reading long press did not select a word");
+        selection(activity,"copy"); android.os.SystemClock.sleep(300);
+        check(activity.pasteText().equals("Alpha"),"Reading word clipboard: "+activity.pasteText());
+        org.json.JSONObject handles=selection(activity,"state");
+        snapshot(activity,result,"snapshot-reading-word");
+        org.json.JSONObject debugBefore = new org.json.JSONObject(handles.toString()); debugBefore.remove("source");
+        result.putString("reading-before",debugBefore.toString());
+        double bx=handles.getDouble("bx"), by=handles.getDouble("by");
+        selection(activity,"move",bx,by+14,0);
+        org.json.JSONObject debugDown=selection(activity,"down",bx,by+14,0); debugDown.remove("source"); result.putString("handle-down",debugDown.toString()); android.os.SystemClock.sleep(100);
+        selection(activity,"move",bx+100,by+55,0); android.os.SystemClock.sleep(100);
+        selection(activity,"up",bx+100,by+55,0); android.os.SystemClock.sleep(400);
+        selection(activity,"copy"); android.os.SystemClock.sleep(300);
+        snapshot(activity,result,"snapshot-reading-drag");
+        org.json.JSONObject debugAfter = selection(activity,"state"); debugAfter.remove("source"); result.putString("reading-after",debugAfter.toString());
+        boolean readingDragWorks=activity.pasteText().contains("Beta");
+        snapshot(activity,result,"snapshot-reading-selection");
+        selection(activity,"all"); android.os.SystemClock.sleep(400);
+        selection(activity,"copy"); android.os.SystemClock.sleep(300);
+        check(activity.pasteText().startsWith("Alpha") && activity.pasteText().contains("LAST_DOCUMENT_MARKER"),"Reading all missed offscreen text");
+        selection(activity,"source"); android.os.SystemClock.sleep(700);
+        org.json.JSONObject tap=selection(activity,"state");
+        selection(activity,"move",tap.getDouble("x"),tap.getDouble("y"),0);
+        selection(activity,"down",tap.getDouble("x"),tap.getDouble("y"),0);
+        selection(activity,"up",tap.getDouble("x"),tap.getDouble("y"),0);
+        android.os.SystemClock.sleep(400);
+        longPress(activity,selection(activity,"state"));
+        handles=selection(activity,"state");
+        check(handles.getBoolean("active"),"Source long press did not select a word");
+        check(handles.getInt("anchor")==0 && handles.getInt("cursor")==5,"Source word offsets: "+handles);
+        selection(activity,"copy"); android.os.SystemClock.sleep(300);
+        check(activity.pasteText().equals("Alpha"),"Source word clipboard: "+activity.pasteText());
+        // Drag the actual handle through the Slint pointer event path to a second-line caret.
+        org.json.JSONObject target=selection(activity,"state",0,0,bytes(content).length-2);
+        bx=handles.getDouble("bx"); by=handles.getDouble("by");
+        selection(activity,"move",bx,by+14,0);
+        selection(activity,"down",bx,by+14,0); android.os.SystemClock.sleep(100);
+        double tx=target.getDouble("x"), ty=target.getDouble("y")+14;
+        selection(activity,"move",tx,ty,0); selection(activity,"up",tx,ty,0); android.os.SystemClock.sleep(350);
+        selection(activity,"copy"); android.os.SystemClock.sleep(300);
+        check(activity.pasteText().contains("中文 👩‍💻 café") && activity.pasteText().contains("Beta"),"Source handle lost Unicode/cross-line selection: "+activity.pasteText());
+        snapshot(activity,result,"snapshot-source-selection");
+        selection(activity,"all"); selection(activity,"copy"); android.os.SystemClock.sleep(300);
+        check(activity.pasteText().equals(large.toString()),"Source select-all only copied viewport");
+        Uri exportUri = Uri.parse("content://dev.hui.markdown.preview.test.fixture/document");
+        IntentFilter exportFilter = new IntentFilter(Intent.ACTION_CREATE_DOCUMENT);
+        exportFilter.addDataType("text/plain");
+        exportFilter.addCategory(Intent.CATEGORY_OPENABLE);
+        ActivityMonitor exportMonitor = addMonitor(exportFilter,
+            new ActivityResult(Activity.RESULT_OK,new Intent().setData(exportUri)),true);
+        selection(activity,"export-txt");
+        String exported=""; long exportDeadline=android.os.SystemClock.uptimeMillis()+10000;
+        while (android.os.SystemClock.uptimeMillis()<exportDeadline) {
+            try { exported=new String(read(exportUri),StandardCharsets.UTF_8); } catch (Exception ignored) { }
+            if (exported.contains("LAST_DOCUMENT_MARKER")) break;
+            android.os.SystemClock.sleep(100);
+        }
+        result.putInt("export-picker-interceptions",exportMonitor.getHits());
+        java.lang.reflect.Field pending=HuiActivity.class.getDeclaredField("pendingCopy"); pending.setAccessible(true);
+        String exportPath=(String)pending.get(activity);
+        if (exportPath != null) { result.putString("export-pending",exportPath); result.putLong("export-bytes",new File(exportPath).length()); }
+        removeMonitor(exportMonitor);
+        check(exported.contains("LAST_DOCUMENT_MARKER"),"TXT export missed offscreen content");
+        check(exported.contains("\u4e2d\u6587 \ud83d\udc69\u200d\ud83d\udcbb cafe\u0301"),"TXT lost Unicode");
+        selection(activity,"all"); selection(activity,"left"); android.os.SystemClock.sleep(100);
+        check(!selection(activity,"state").getBoolean("all"),"Caret navigation retained full-document selection");
+        selection(activity,"all"); selection(activity,"replace-all"); android.os.SystemClock.sleep(200);
+        selection(activity,"all"); selection(activity,"copy"); android.os.SystemClock.sleep(200);
+        check(activity.pasteText().equals("Replacement"),"Typing after select-all did not replace entire document");
+        selection(activity,"undo"); android.os.SystemClock.sleep(200);
+        selection(activity,"all"); selection(activity,"copy"); android.os.SystemClock.sleep(200);
+        check(activity.pasteText().equals(large.toString()),"Undo lost content outside editor viewport");
+        check(readingDragWorks,"Reading handle did not cross paragraph");
+        result.putString("selection","PASS: long-press word, actual handle drag across paragraphs/lines, Unicode clipboard, reading/source select-all beyond viewport, whole-document replace/undo, UTF-8 TXT export");
+        selection(activity,"reading");
+    }
+
     public void onStart() {
         Bundle result = new Bundle();
         File local = new File(getTargetContext().getFilesDir(), "bridge-test.md");
@@ -53,6 +168,7 @@ public final class SmokeInstrumentation extends Instrumentation {
             result.putString("display", display.toString());
             result.putString("snapshot", android.util.Base64.encodeToString(
                 java.nio.file.Files.readAllBytes(new File(getTargetContext().getFilesDir(), "display-probe.png").toPath()), android.util.Base64.NO_WRAP));
+            selectionTests(activity,result);
             Uri uri = Uri.parse("content://dev.hui.markdown.preview.test.fixture/document");
             byte[] original = bytes("# 中文 日本語 한국어\r\nemoji 👋🏽\r\n"), edited = bytes("# Édition\r\nРусский Español Deutsch\r\n");
             write(uri, original);

@@ -137,5 +137,7 @@
   "存在未完成渲染，未导出": "Export interrompu : le rendu est incomplet",
   "无效资源路径": "Chemin de ressource invalide",
   "字体路径无效": "Chemin de police invalide",
-  "已取消": "Annulé"
+  "已取消": "Annulé",
+  "导出 TXT": "Exporter TXT",
+  "导出 TXT…": "Exporter TXT…"
 }
