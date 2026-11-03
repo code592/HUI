@@ -102,8 +102,8 @@ impl NativeDocument {
                     .to_string(),
             ),
             net_provider: Some(Arc::new(Resources { root, assets })),
-            #[cfg(target_os = "windows")]
-            font_ctx: Some(windows_font_context()?),
+            #[cfg(any(target_os = "windows", target_os = "android"))]
+            font_ctx: Some(platform_font_context()?),
             ..Default::default()
         };
         let mut document = HtmlDocument::from_html(html, config);
@@ -442,8 +442,17 @@ pub fn windows_font_bytes() -> Result<Arc<Vec<u8>>> {
     .map_err(anyhow::Error::msg)
 }
 
-#[cfg(target_os = "windows")]
-fn windows_font_context() -> Result<blitz_dom::FontContext> {
+#[cfg(target_os = "android")]
+pub fn android_font_bytes() -> Arc<Vec<u8>> {
+    static DATA: std::sync::OnceLock<Arc<Vec<u8>>> = std::sync::OnceLock::new();
+    DATA.get_or_init(|| {
+        Arc::new(include_bytes!("../../../vendor/fonts/NotoSansCJKsc-Regular.otf").to_vec())
+    })
+    .clone()
+}
+
+#[cfg(any(target_os = "windows", target_os = "android"))]
+fn platform_font_context() -> Result<blitz_dom::FontContext> {
     use fontique::{Blob, FallbackKey, Script};
     use std::sync::{Mutex, OnceLock};
     static CONTEXT: OnceLock<Mutex<Option<blitz_dom::FontContext>>> = OnceLock::new();
@@ -453,15 +462,22 @@ fn windows_font_context() -> Result<blitz_dom::FontContext> {
         .map_err(|_| anyhow::anyhow!("Font cache lock poisoned"))?;
     if cached.is_none() {
         let mut context = blitz_dom::FontContext::new();
-        let fonts = context
-            .collection
-            .register_fonts(Blob::new(windows_font_bytes()?), None);
+        #[cfg(target_os = "windows")]
+        let data = windows_font_bytes()?;
+        #[cfg(target_os = "android")]
+        let data = android_font_bytes();
+        let fonts = context.collection.register_fonts(Blob::new(data), None);
         anyhow::ensure!(!fonts.is_empty(), "Invalid bundled CJK font");
         for script in ["Hani", "Hira", "Kana", "Hang"] {
-            context.collection.append_fallbacks(
-                FallbackKey::new(Script::from_str_unchecked(script), None),
-                fonts.iter().map(|font| font.0),
-            );
+            let key = FallbackKey::new(Script::from_str_unchecked(script), None);
+            #[cfg(target_os = "windows")]
+            context
+                .collection
+                .append_fallbacks(key, fonts.iter().map(|font| font.0));
+            #[cfg(target_os = "android")]
+            context
+                .collection
+                .set_fallbacks(key, fonts.iter().map(|font| font.0));
         }
         *cached = Some(context);
     }
@@ -471,6 +487,18 @@ fn windows_font_context() -> Result<blitz_dom::FontContext> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn bundled_cjk_font_covers_ui_labels_and_document_languages() {
+        let face = ttf_parser::Face::parse(
+            include_bytes!("../../../vendor/fonts/NotoSansCJKsc-Regular.otf"),
+            0,
+        )
+        .unwrap();
+        for ch in "打开阅读编辑设置保存中文繁體日本語한국어ÉöРусский".chars()
+        {
+            assert!(face.glyph_index(ch).is_some(), "missing glyph: {ch}");
+        }
+    }
     #[test]
     fn inline_source_reserves_document_flow_without_covering_following_blocks() {
         let html = "<html><style>body{margin:20px} p{margin:0 0 18px}</style><body><div data-source-start='0' data-source-end='8'><p data-source-start='0' data-source-end='8'>first <strong>bold</strong> <code>code</code></p></div><p id='after' data-source-start='9' data-source-end='15'>second</p></body></html>";

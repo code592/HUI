@@ -73,6 +73,22 @@ fn launch(app: slint::android::AndroidApp) -> anyhow::Result<()> {
     DATA.set(PathBuf::from(call("dataDirectory", &[])?)).ok();
     slint::android::init(app)?;
     let ui = AppWindow::new()?;
+    {
+        use slint::fontique_010::{fontique, shared_collection};
+        let mut collection = shared_collection();
+        let fonts = collection.register_fonts(
+            fontique::Blob::new(hui_render::native::android_font_bytes()),
+            None,
+        );
+        anyhow::ensure!(!fonts.is_empty(), "Invalid bundled CJK font");
+        for script in ["Hani", "Hira", "Kana", "Hang"] {
+            collection.set_fallbacks(
+                fontique::FallbackKey::new(fontique::Script::from_str_unchecked(script), None),
+                fonts.iter().map(|font| font.0),
+            );
+        }
+    }
+    ui.set_ui_font("Noto Sans CJK SC".into());
     ui.set_mobile(true);
     ui.set_sidebar_visible(false);
     ui.set_mode(3);
@@ -150,4 +166,53 @@ pub mod clipboard {
             anyhow::bail!("Android clipboard image insertion is not supported yet")
         }
     }
+}
+
+// In-process instrumentation probe, like the desktop --screenshot path. No OS capture.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_hui_markdown_HuiActivity_nativeDisplayProbe(
+    env: JNIEnv,
+    _activity: JObject,
+) -> jni::sys::jstring {
+    let (send, receive) = std::sync::mpsc::sync_channel(1);
+    let _ = slint::invoke_from_event_loop(move || {
+        UI.with(|slot| {
+            let slot = slot.borrow();
+            let Some((weak, _)) = slot.as_ref() else {
+                return;
+            };
+            let Some(ui) = weak.upgrade() else {
+                return;
+            };
+            let result = ui
+                .window()
+                .take_snapshot()
+                .map_err(anyhow::Error::from)
+                .and_then(|pixels| {
+                    hui_render::native::write_png(
+                        &data_dir().join("display-probe.png"),
+                        pixels.width(),
+                        pixels.height(),
+                        pixels.as_bytes(),
+                    )
+                });
+            let size = ui.window().size().to_logical(ui.window().scale_factor());
+            let _ = send.send(
+                serde_json::json!({
+                    "top": ui.get_mobile_safe_top(), "bottom": ui.get_mobile_safe_bottom(),
+                    "left": ui.get_mobile_safe_left(), "right": ui.get_mobile_safe_right(),
+                    "width": size.width, "height": size.height,
+                    "font": ui.get_ui_font().as_str(), "snapshot": result.is_ok(),
+                    "error": result.err().map(|e| e.to_string())
+                })
+                .to_string(),
+            );
+        });
+    });
+    let value = receive
+        .recv_timeout(std::time::Duration::from_secs(15))
+        .unwrap_or_else(|e| serde_json::json!({"error": e.to_string()}).to_string());
+    env.new_string(value)
+        .map(|s| s.into_raw())
+        .unwrap_or(std::ptr::null_mut())
 }

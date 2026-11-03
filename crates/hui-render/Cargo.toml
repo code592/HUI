@@ -28,6 +28,10 @@ skia-safe = { version = "=0.99.0", features = ["pdf", "textlayout"] }
 # QuickJS does not ship Android bindings; generate them against the selected NDK.
 [target.'cfg(target_os = "android")'.dependencies]
 rquickjs = { version = "=0.12.2", features = ["bindgen"] }
+fontique = "=0.11.1"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 fontique = "=0.11.1"
+
+[dev-dependencies]
+ttf-parser = "=0.25.1"

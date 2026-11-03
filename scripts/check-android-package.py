@@ -29,7 +29,8 @@ with zipfile.ZipFile(path) as apk:
                 assert header[7] >= 16384, f'ELF LOAD segment not 16 KiB aligned: {name}'
     for required in ['AndroidManifest.xml', 'classes.dex', 'assets/katex/katex.min.css',
                      'assets/licenses/LICENSE', 'assets/licenses/Slint-LICENSE.md',
-                     'assets/licenses/MathJax-LICENSE', 'assets/licenses/THIRD_PARTY.md']:
+                     'assets/licenses/MathJax-LICENSE', 'assets/licenses/THIRD_PARTY.md',
+                     'assets/licenses/Noto-CJK-OFL.txt']:
         assert required in names, f'Missing {required}'
     assert len([n for n in names if n.startswith('assets/katex/fonts/')]) >= 50, 'Missing math fonts'
     assert b'ic_launcher' in apk.read('resources.arsc'), 'Missing launcher logo resource'

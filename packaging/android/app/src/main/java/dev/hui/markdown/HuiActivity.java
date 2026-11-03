@@ -23,6 +23,8 @@ public final class HuiActivity extends NativeActivity {
     private String pendingCopy;
     private boolean pendingDocument;
     private native void nativeEvent(String kind, String value);
+    // Private instrumentation hook; no Intent or document can invoke it.
+    private native String nativeDisplayProbe();
     private SharedPreferences mappings() { return getSharedPreferences("documents", MODE_PRIVATE); }
     @Override public void onCreate(Bundle state) {
         // Resources are versioned and installed before the Rust native entry point starts.

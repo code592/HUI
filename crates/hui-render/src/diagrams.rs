@@ -48,6 +48,9 @@ fn fonts() -> Result<Arc<usvg::fontdb::Database>> {
             // fonts ourselves; otherwise SVG text is silently dropped during outlining.
             #[cfg(target_os = "android")]
             {
+                db.load_font_source(usvg::fontdb::Source::Binary(
+                    crate::native::android_font_bytes(),
+                ));
                 db.load_fonts_dir("/system/fonts");
                 db.load_fonts_dir("/product/fonts");
                 db.set_sans_serif_family("Roboto");

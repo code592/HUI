@@ -62,14 +62,23 @@ pub fn run() -> anyhow::Result<()> {
         if args.iter().any(|a| a == "settings") {
             ui.set_settings_visible(true);
         }
-        if args.iter().any(|a| a == "mobile") {
+        if args.iter().any(|a| a == "mobile" || a == "mobile-safe") {
             ui.set_mobile(true);
             ui.set_sidebar_visible(false);
         }
-        if args.iter().any(|a| a == "compact" || a == "mobile") {
+        if args
+            .iter()
+            .any(|a| a == "compact" || a == "mobile" || a == "mobile-safe")
+        {
             ui.set_initial_width(430.);
             ui.set_initial_height(820.);
             ui.window().set_size(slint::LogicalSize::new(430., 820.));
+        }
+        if args.iter().any(|a| a == "mobile-safe") {
+            ui.set_mobile_safe_top(32.);
+            ui.set_mobile_safe_bottom(24.);
+            ui.set_mobile_safe_left(12.);
+            ui.set_mobile_safe_right(12.);
         }
         if args.iter().any(|a| a == "search") {
             ui.set_search_visible(true);
@@ -129,7 +138,11 @@ pub fn run() -> anyhow::Result<()> {
         snapshot_timer = Some(timer);
     }
     ui.show()?;
-    if capture && args.iter().any(|a| a == "compact" || a == "mobile") {
+    if capture
+        && args
+            .iter()
+            .any(|a| a == "compact" || a == "mobile" || a == "mobile-safe")
+    {
         ui.window().set_size(slint::LogicalSize::new(430., 820.));
     }
     controller::schedule_render(&app, &ui);

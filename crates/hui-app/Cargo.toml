@@ -30,7 +30,7 @@ rfd = "0.15"
 arboard = "3"
 
 [target.'cfg(target_os = "android")'.dependencies]
-slint = { version = "=1.17.1", default-features = false, features = ["backend-android-activity-06"] }
+slint = { version = "=1.17.1", default-features = false, features = ["backend-android-activity-06", "unstable-fontique-010"] }
 jni = "0.21.1"
 
 [target.'cfg(target_os = "macos")'.dependencies]

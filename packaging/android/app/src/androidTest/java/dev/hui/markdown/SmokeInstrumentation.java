@@ -26,6 +26,16 @@ public final class SmokeInstrumentation extends Instrumentation {
         File local = new File(getTargetContext().getFilesDir(), "bridge-test.md");
         SharedPreferences prefs = getTargetContext().getSharedPreferences("documents", Context.MODE_PRIVATE);
         try {
+            File profile = new File(getTargetContext().getFilesDir(), "profile");
+            profile.mkdirs();
+            File preferencesFile = new File(profile, "preferences.json");
+            org.json.JSONObject preferences = new org.json.JSONObject();
+            preferences.put("language", "zh-Hans");
+            preferences.put("theme", 0);
+            preferences.put("font_size", 15);
+            preferences.put("recent", new org.json.JSONArray());
+            preferences.put("positions", new org.json.JSONObject());
+            write(preferencesFile, bytes(preferences.toString()));
             HuiActivity activity = (HuiActivity) startActivitySync(new Intent().setClassName(getTargetContext(), "dev.hui.markdown.HuiActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
             java.lang.reflect.Field ready = HuiActivity.class.getDeclaredField("ready");
             ready.setAccessible(true);
@@ -33,6 +43,16 @@ public final class SmokeInstrumentation extends Instrumentation {
             while (!ready.getBoolean(activity) && android.os.SystemClock.uptimeMillis() < deadline) android.os.SystemClock.sleep(100);
             check(ready.getBoolean(activity), "Slint native UI did not initialize");
             android.os.SystemClock.sleep(2000);
+            java.lang.reflect.Method probe = HuiActivity.class.getDeclaredMethod("nativeDisplayProbe");
+            probe.setAccessible(true);
+            org.json.JSONObject display = new org.json.JSONObject((String) probe.invoke(activity));
+            check(display.getString("font").equals("Noto Sans CJK SC"), "Bundled UI font not selected");
+            check(display.getBoolean("snapshot"), "Native snapshot failed: " + display);
+            check(display.getDouble("top") > 0, "System status bar inset not reported: " + display);
+            check(display.getDouble("height") > display.getDouble("top") + display.getDouble("bottom") + 100, "Unsafe content height: " + display);
+            result.putString("display", display.toString());
+            result.putString("snapshot", android.util.Base64.encodeToString(
+                java.nio.file.Files.readAllBytes(new File(getTargetContext().getFilesDir(), "display-probe.png").toPath()), android.util.Base64.NO_WRAP));
             Uri uri = Uri.parse("content://dev.hui.markdown.preview.test.fixture/document");
             byte[] original = bytes("# 中文 日本語 한국어\r\nemoji 👋🏽\r\n"), edited = bytes("# Édition\r\nРусский Español Deutsch\r\n");
             write(uri, original);

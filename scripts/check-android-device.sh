@@ -10,7 +10,7 @@ packaging/android/gradlew -p packaging/android --no-daemon assemblePreviewAndroi
 "$adb" -s "$serial" install -r packaging/android/app/build/outputs/apk/preview/app-preview.apk
 "$adb" -s "$serial" install -r packaging/android/app/build/outputs/apk/androidTest/preview/app-preview-androidTest.apk
 mkdir -p .build
-"$adb" -s "$serial" shell am instrument -w dev.hui.markdown.preview.test/dev.hui.markdown.SmokeInstrumentation | tee .build/android-smoke.log
+"$adb" -s "$serial" shell am instrument -w -r dev.hui.markdown.preview.test/dev.hui.markdown.SmokeInstrumentation | tee .build/android-smoke.log | sed '/^INSTRUMENTATION_RESULT: snapshot=/d'
 # Instrumentation can exit 0 on test failure; require the explicit success marker.
 grep -q 'PASS: provider save' .build/android-smoke.log
 ! grep -q 'FAIL:' .build/android-smoke.log

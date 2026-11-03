@@ -125,6 +125,19 @@ export component AppWindow inherits Window {
     min-width: root.mobile ? 300px : 430px; min-height: root.mobile ? 320px : 520px;
     background: Design.paper;
     default-font-size: 13px;
+    in property <string> ui-font: "";
+    default-font-family: root.ui-font;
+    in property <length> mobile-safe-left: root.safe-area-insets.left;
+    private property <length> safe-left: root.mobile ? root.mobile-safe-left : 0px;
+    in property <length> mobile-safe-top: root.safe-area-insets.top;
+    private property <length> safe-top: root.mobile ? root.mobile-safe-top : 0px;
+    in property <length> mobile-safe-right: root.safe-area-insets.right;
+    private property <length> safe-right: root.mobile ? root.mobile-safe-right : 0px;
+    in property <length> mobile-safe-bottom: root.safe-area-insets.bottom;
+    private property <length> safe-bottom: root.mobile ? root.mobile-safe-bottom : 0px;
+    private property <length> content-width: max(1px, root.width - root.safe-left - root.safe-right);
+    private property <length> content-height: max(1px, min(root.height - root.safe-bottom,
+        root.mobile && root.virtual-keyboard-size.height > 0px ? root.virtual-keyboard-position.y : root.height) - root.safe-top);
     in-out property <int> theme <=> Design.theme;
     in-out property <int> mode: 3;
     in-out property <int> displayed-mode: 3;
@@ -169,8 +182,8 @@ export component AppWindow inherits Window {
     private property <bool> regex-search;
     out property <float> preview-width: mode == 0 ? 0 : mode == 1 && !compact ? (body-width / 1px - 8) * (1 - split-ratio) : body-width / 1px;
     out property <float> preview-height: reader.height / 1px + (show-source ? 42 : 0) - (mode == 0 || mode == 1 ? 42 : 0);
-    private property <length> body-width: root.width - (root.sidebar-visible && !root.compact ? root.sidebar-width * 1px + 1px : 0px) - (root.outline-visible && !root.compact ? 196px : 0px);
-    private property <bool> compact: root.mobile || root.width < 760px;
+    private property <length> body-width: root.content-width - (root.sidebar-visible && !root.compact ? root.sidebar-width * 1px + 1px : 0px) - (root.outline-visible && !root.compact ? 196px : 0px);
+    private property <bool> compact: root.mobile || root.content-width < 760px;
     private property <bool> show-source: displayed-mode == 0 || displayed-mode == 1;
     private property <bool> show-reader: displayed-mode == 3 || displayed-mode == 2 || (displayed-mode == 1 && !compact);
     out property <int> source-cursor: mode == 2 ? inline-input.cursor-position-byte-offset : input.cursor-position-byte-offset;
@@ -281,7 +294,11 @@ export component AppWindow inherits Window {
     changed preview-height => { root.resize-preview(); }
     changed mode => { if root.mode == 3 || root.mode == 2 { reader-focus.focus(); } root.action("mode-change"); }
 
-    Rectangle { x: 0px; y: 0px; width: root.width; height: root.height;
+    Rectangle {
+    x: root.safe-left; y: root.safe-top;
+    width: root.content-width; height: root.content-height;
+    clip: true;
+    Rectangle { x: 0px; y: 0px; width: parent.width; height: parent.height;
     VerticalLayout {
         spacing: 0px;
         Rectangle {
@@ -650,7 +667,7 @@ export component AppWindow inherits Window {
     if root.mobile && root.sidebar-visible: Rectangle {
         background: #00000030;
         TouchArea { clicked => { root.sidebar-visible = false; } }
-        Rectangle { width: min(320px, root.width - 44px); background: Design.paper;
+        Rectangle { width: min(320px, root.content-width - 44px); background: Design.paper;
             VerticalLayout { padding: 16px; spacing: 12px;
                 HorizontalLayout {
                     Action { label: I18n.translate("新建", I18n.locale); triggered => { root.sidebar-visible = false; root.action("new"); root.mode = 0; } }
@@ -672,8 +689,8 @@ export component AppWindow inherits Window {
         }
     }
     if root.notice != "": Rectangle {
-        x: max(12px, (root.width - 560px) / 2); y: root.height - 92px;
-        width: min(560px, root.width - 24px); height: 48px;
+        x: max(12px, (root.content-width - 560px) / 2); y: root.content-height - 92px;
+        width: min(560px, root.content-width - 24px); height: 48px;
         background: Design.panel; border-radius: 10px; border-width: 1px; border-color: Design.line;
         HorizontalLayout { padding: 10px; spacing: 8px;
             Text { text: root.notice; color: Design.ink; font-size: 12px; wrap: word-wrap; vertical-alignment: center; }
@@ -733,5 +750,6 @@ export component AppWindow inherits Window {
                 Rectangle { vertical-stretch: 1; }
             }
         }
+    }
     }
 }

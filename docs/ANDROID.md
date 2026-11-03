@@ -46,3 +46,11 @@ bash scripts/check-android-device.sh emulator-5560
 需要已启动的 ARM64 模拟器。脚本只接受明确的 emulator 序列号，避免安装到连接的个人手机。单独测试 APK 中的 ContentProvider 验证实际导入后使用 Rust 规范路径写回、Unicode/CRLF 保真、重复保存、外部冲突、只读与权限撤销。测试 Provider 不进入产品 APK，测试结束卸载。
 
 本次实际构建与验证结果见 [PLATFORM-VALIDATION.md](PLATFORM-VALIDATION.md)。
+
+## 2026-11-03: CJK fonts and safe content area
+
+Android UI, source, reading and diagram rendering now register the bundled Noto Sans CJK SC font (OFL 1.1). CJK script fallback uses this font, and Android body text prefers it. The font bytes are shared across registries and cached; no system font installation is required. Embedding the font increases the APK size.
+
+All content, drawers, notices and settings are placed within Slint dynamic system safe-area insets, with keyboard bounds limiting usable height. The API 36 test emulator reported top 51.8 and bottom 24 logical pixels; these are system values, not device-specific constants.
+
+Version code is now 4, using the same development signing certificate. Native instrumentation checks actual insets, font registration and an app-rendered snapshot. Chinese glyph coverage, the native image, and simulated safe-area reading/settings layouts have been checked. Full physical-device, landscape-cutout and IME acceptance remain pending.

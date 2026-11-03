@@ -25,6 +25,7 @@ mkdir -p "$generated/jniLibs/arm64-v8a" "$generated/assets/katex" "$generated/as
 cp "${CARGO_TARGET_DIR:-target}/aarch64-linux-android/release/libhui_app.so" "$generated/jniLibs/arm64-v8a/"
 cp vendor/katex/katex.min.css vendor/katex/LICENSE "$generated/assets/katex/"
 cp -R vendor/katex/fonts "$generated/assets/katex/"
+cp vendor/fonts/OFL.txt "$generated/assets/licenses/Noto-CJK-OFL.txt"
 cp LICENSE THIRD_PARTY.md "$generated/assets/licenses/"
 cp vendor/slint/LICENSE.md "$generated/assets/licenses/Slint-LICENSE.md"
 cp vendor/mathjax/LICENSE "$generated/assets/licenses/MathJax-LICENSE"
