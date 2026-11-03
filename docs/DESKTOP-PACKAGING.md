@@ -31,6 +31,10 @@ Linux 解压后执行 bin/hui。Ubuntu 运行依赖：`sudo apt install libfontc
 
 四个包齐全后执行 `python3 scripts/check-desktop-archives.py`，验证 EXE/ELF 和 CRT 架构、必需资源及 SHA-256。只检查单个包可传入例如 `HUI-linux-arm64`。
 
+TXT 导出使用 `python3 scripts/check-txt-export.py <包内 hui 或 hui.exe 路径>` 验证。测试从独立临时目录启动最终应用，检查超过 8192 字符的九语言全文、emoji、组合字符、代码及 HTML 文本、末尾标记、带空格的路径与 `.txt` / `.TXT` 后缀。公式和图表在 TXT 中保留源码文本，不依赖其渲染成功。
+
+GitHub Actions 的 `Native platform packages` 工作流可选择 `desktop`，一次构建 Windows/Linux 的 x64、ARM64 四个包。Windows x64 和两个 Linux 架构运行 TXT、Mermaid 导出及源码选区快照；Windows ARM64 在 x64 runner 上交叉编译，只做构建与产物结构验证。CI 产物不自动发布到 GitHub Release。
+
 Windows GUI 冒烟测试应在已登录用户的交互桌面会话执行；SYSTEM 服务会话的 OpenGL 行为不能代表实际桌面。运行检查应解压 ZIP 后使用包内 exe，并移除开发工具目录 PATH，验证运行库确实来自包或系统。
 
 Windows 解压运行检查：`./scripts/check-windows-package.ps1 -Arch x64`（ARM64 改为 arm64）。输出位于 `.build/cross/smoke-windows-<架构>`，使用独立临时配置，不修改用户文档。
